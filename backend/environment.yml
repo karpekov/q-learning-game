@@ -1,0 +1,17 @@
+name: cs3600-q-learning
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - numpy
+  - matplotlib
+  - networkx
+  - ipywidgets
+  - jupyter
+  - notebook
+  - pip
+  - pip:
+    - ipython
+    - pygame
+    - tqdm
