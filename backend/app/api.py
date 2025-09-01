@@ -228,7 +228,7 @@ def list_experiments(graph_type: str):
     return ExperimentListResponse(graph_type=graph_type, count=len(items), items=items)
 
 
-@app.get("/experiments/{graph_type}/{exp_id}", tags=["experiments"])
+@app.get("/experiments/{graph_type}/{exp_id:path}", tags=["experiments"])
 def get_experiment(
     graph_type: str,
     exp_id: str,
@@ -273,7 +273,7 @@ def get_experiment(
     return result
 
 
-@app.get("/experiments/{graph_type}/{exp_id}/greedy-path", tags=["experiments"])
+@app.get("/experiments/{graph_type}/{exp_id:path}/greedy-path", tags=["experiments"])
 def get_greedy_path(graph_type: str, exp_id: str, start: str = "S", max_steps: int = 500):
     if graph_type not in AVAILABLE_GRAPHS:
         raise HTTPException(status_code=404, detail=f"Unknown graph_type: {graph_type}")
