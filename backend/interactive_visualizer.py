@@ -68,7 +68,7 @@ class MDPVisualizer:
         self.current_experiment_index = 0
 
         # Get graph information
-        self.adj_template, self.terminal_rewards_template, self.room_coords = get_graph(graph_type)
+        self.adj_template, self.terminal_rewards_template, self.room_coords, self.portal_info, self.intermediate_rewards_template = get_graph(graph_type)
 
         # Check if this is a experiments directory
         if data_path == 'q_learning_experiments' and os.path.isdir(data_path):
@@ -304,7 +304,7 @@ class MDPVisualizer:
         if has_goal and has_coord_states and len(states) > 50:  # Complex maze has many states
             # Verify all states exist in complex_maze coordinates
             try:
-                _, _, coords = get_graph('complex_maze')
+                _, _, coords, _, _ = get_graph('complex_maze')
                 if all(state in coords for state in states):
                     return coords
             except Exception:
@@ -314,7 +314,7 @@ class MDPVisualizer:
         numbered_nodes = [s for s in states if s.startswith('N') and s[1:].isdigit()]
         if len(numbered_nodes) >= 5:  # Simple grid has many numbered nodes
             try:
-                _, _, coords = get_graph('simple_grid')
+                _, _, coords, _, _ = get_graph('simple_grid')
                 if all(state in coords for state in states):
                     return coords
             except Exception:
@@ -324,7 +324,7 @@ class MDPVisualizer:
         if 'S' in states and 'J' in terminal_states and 'T' in terminal_states:
             if len(states) >= 10:  # Custom rooms has 13 states
                 try:
-                    _, _, coords = get_graph('custom_rooms')
+                    _, _, coords, _, _ = get_graph('custom_rooms')
                     if all(state in coords for state in states):
                         return coords
                 except Exception:
@@ -333,7 +333,7 @@ class MDPVisualizer:
         # Final fallback: use the graph type that contains all required states
         for graph_type in AVAILABLE_GRAPHS:
             try:
-                _, _, coords = get_graph(graph_type)
+                _, _, coords, _, _ = get_graph(graph_type)
                 # Check if all states in the data exist in this graph's coordinates
                 if all(state in coords for state in states):
                     print(f"Detected graph type: {graph_type} (by state matching)")
@@ -1057,6 +1057,10 @@ class MDPVisualizer:
                         color = pygame.Color(COLORS['goal'])  # Goal room
                     else:
                         color = pygame.Color(COLORS['pit'])   # Pit room
+                elif len(room) == 1 and room.islower() and room.isalpha() and hasattr(self, 'portal_info') and room in self.portal_info:
+                    # Portal room - light blue with high transparency
+                    color = pygame.Color('#87CEEB')  # Light blue (SkyBlue)
+                    color.a = 100  # High transparency (0-255 scale)
                 else:
                     color = pygame.Color(COLORS['room'])  # Regular room
 
@@ -1448,7 +1452,7 @@ class MDPVisualizer:
         # Determine which graph to use
         if override_graph_type:
             # Use specified graph type directly
-            adj, terminal_rewards, room_coords = get_graph(override_graph_type)
+            adj, terminal_rewards, room_coords, portal_info, intermediate_rewards = get_graph(override_graph_type)
             self.room_coords = room_coords
             step_cost = -1.0  # Default step cost for human play
             stochasticity = 0  # Default stochasticity for human play
@@ -1458,12 +1462,14 @@ class MDPVisualizer:
             terminal_rewards = self.data['environment']['terminal_rewards']
             step_cost = self.data['environment']['step_cost']
             stochasticity = self.data['environment'].get('stochasticity', 1)
+            portal_info = {}  # No portal info from legacy data
+            intermediate_rewards = {}  # No intermediate rewards from legacy data
 
         gamma = 0.95       # Fixed gamma as requested
 
         # Set up environment
         from q_learning import RoomEnvironment
-        env = RoomEnvironment(adj, terminal_rewards, step_cost=step_cost, stochasticity=stochasticity)
+        env = RoomEnvironment(adj, terminal_rewards, step_cost=step_cost, stochasticity=stochasticity, portal_info=portal_info, intermediate_rewards=intermediate_rewards)
 
         # Initialize game state
         current_state = env.reset()
@@ -1655,11 +1661,16 @@ class MDPVisualizer:
         def get_available_actions():
             if current_state in terminal_rewards:
                 return []
-            return list(range(len(adj[current_state])))
+            # Use the environment's method to get available actions (includes wall-bang for portals)
+            return env.get_available_actions(current_state)
 
         # Function to calculate direction and assign keys
         def get_direction_key(from_room, to_room):
             """Calculate the most intuitive key for moving from one room to another"""
+            # Regular movement - check if both rooms have coordinates
+            if from_room not in self.room_coords or to_room not in self.room_coords:
+                return pygame.K_RETURN, "?"  # Fallback for unknown rooms
+
             from_pos = self.room_coords[from_room]
             to_pos = self.room_coords[to_room]
 
@@ -1714,8 +1725,32 @@ class MDPVisualizer:
 
             # First pass: assign intuitive arrow keys
             for action in actions:
-                target_room = adj[current_state][action]
-                key, label = get_direction_key(current_state, target_room)
+                # Check if this is a wall-bang action
+                if action >= len(adj[current_state]):
+                    # Wall-bang action - assign based on direction
+                    if len(current_state) == 1 and current_state.islower() and current_state.isalpha() and current_state in portal_info:
+                        direction = portal_info[current_state]['wall_bang_direction']
+                        direction_keys = {
+                            "up": pygame.K_UP,
+                            "down": pygame.K_DOWN,
+                            "left": pygame.K_LEFT,
+                            "right": pygame.K_RIGHT
+                        }
+                        direction_labels = {
+                            "up": "↑",
+                            "down": "↓",
+                            "left": "←",
+                            "right": "→"
+                        }
+                        key = direction_keys.get(direction, pygame.K_SPACE)
+                        label = direction_labels.get(direction, "🌀")
+                    else:
+                        key = pygame.K_SPACE
+                        label = "?"
+                else:
+                    # Regular movement action
+                    target_room = adj[current_state][action]
+                    key, label = get_direction_key(current_state, target_room)
 
                 if key not in used_keys:
                     key_assignments[action] = (key, label)
@@ -1744,15 +1779,29 @@ class MDPVisualizer:
 
             for i, action in enumerate(actions):
                 button_x = start_x + i * (button_width + button_margin)
-                target_room = adj[current_state][action]
+
+                # Check if this is a wall-bang action (beyond regular neighbors)
+                if action >= len(adj[current_state]):
+                    # This is the wall-bang action for a portal
+                    if len(current_state) == 1 and current_state.islower() and current_state.isalpha() and current_state in portal_info:
+                        direction = portal_info[current_state]['wall_bang_direction']
+                        target_room = f"WALL_BANG_{direction.upper()}"
+                        # Get direction arrow
+                        direction_arrows = {"up": "↑", "down": "↓", "left": "←", "right": "→"}
+                        arrow = direction_arrows.get(direction, "🌀")
+                        button_text = f"{arrow} Bang {direction} wall"
+                    else:
+                        target_room = "UNKNOWN"
+                        button_text = "? Unknown action"
+                else:
+                    # Regular movement action
+                    target_room = adj[current_state][action]
+                    # Get key assignment
+                    key, key_label = key_assignments.get(action, (None, ""))
+                    button_text = f"{key_label} Go to {target_room}"
 
                 # Show Q-value in button if available
                 q_val = q_values[current_state][action]
-
-                # Get key assignment
-                key, key_label = key_assignments.get(action, (None, ""))
-
-                button_text = f"{key_label} Go to {target_room}"
 
                 action_buttons.append((Button(button_x, button_y, button_width, button_height, button_text), action))
 
@@ -1779,7 +1828,16 @@ class MDPVisualizer:
 
                         # Record selected action
                         last_action = action
-                        last_intended = adj[current_state][action]
+                        # Handle wall-bang actions that don't have corresponding adjacency entries
+                        if action < len(adj[current_state]):
+                            last_intended = adj[current_state][action]
+                        else:
+                            # Wall-bang action - set intended state to indicate wall-bang
+                            if len(current_state) == 1 and current_state.islower() and current_state.isalpha() and current_state in portal_info:
+                                direction = portal_info[current_state]['wall_bang_direction']
+                                last_intended = f"WALL_BANG_{direction.upper()}"
+                            else:
+                                last_intended = "WALL_BANG"
 
                         # Take the action
                         old_state = current_state
@@ -1867,7 +1925,7 @@ class MDPVisualizer:
                     stochasticity_button.text = f"Stoch: {stochasticity_labels[stochasticity]}"
 
                     # Recreate environment with new stochasticity
-                    env = RoomEnvironment(adj, terminal_rewards, step_cost=step_cost, stochasticity=stochasticity)
+                    env = RoomEnvironment(adj, terminal_rewards, step_cost=step_cost, stochasticity=stochasticity, portal_info=portal_info, intermediate_rewards=intermediate_rewards)
 
                     # Reset the current episode
                     current_state = env.reset()
@@ -1972,6 +2030,21 @@ class MDPVisualizer:
                         color = pygame.Color(COLORS['goal'])  # Goal room
                     else:
                         color = pygame.Color(COLORS['pit'])   # Pit room
+                elif len(room) == 1 and room.islower() and room.isalpha() and room in portal_info:
+                    # Portal room - light blue with high transparency
+                    color = pygame.Color('#87CEEB')  # Light blue (SkyBlue)
+                    color.a = 100  # High transparency (0-255 scale)
+                elif room in intermediate_rewards and is_explored:
+                    # Intermediate reward room
+                    if room in env.collected_rewards:
+                        # Collected reward - dim gray
+                        color = pygame.Color('#999999')  # Gray for collected
+                    else:
+                        # Uncollected reward - highlight based on reward type
+                        if intermediate_rewards[room] > 0:
+                            color = pygame.Color('#90EE90')  # Light green for positive
+                        else:
+                            color = pygame.Color('#FFB6C1')  # Light pink for negative
                 else:
                     color = pygame.Color(COLORS['room'])  # Regular room (neutral for unexplored)
 
@@ -2012,6 +2085,12 @@ class MDPVisualizer:
                 # Only show terminal reward values for explored rooms
                 if room in terminal_rewards and is_explored:
                     label += f"\n{terminal_rewards[room]}"
+                # Show intermediate rewards (+ or -) but dim them if collected
+                elif room in intermediate_rewards and is_explored:
+                    if room in env.collected_rewards:
+                        label += f"\n({intermediate_rewards[room]})"  # Parentheses for collected
+                    else:
+                        label += f"\n{intermediate_rewards[room]}"  # Normal for uncollected
 
                 text = room_font.render(label, True, label_color)
                 screen.blit(text, (pos[0] - text.get_width()//2, pos[1] - text.get_height()//2))
@@ -2273,7 +2352,7 @@ def main():
         # Create a minimal visualizer just for human play
         visualizer = MDPVisualizer.__new__(MDPVisualizer)  # Create without calling __init__
         visualizer.graph_type = args.graph_type
-        visualizer.adj_template, visualizer.terminal_rewards_template, visualizer.room_coords = get_graph(args.graph_type)
+        visualizer.adj_template, visualizer.terminal_rewards_template, visualizer.room_coords, visualizer.portal_info, visualizer.intermediate_rewards_template = get_graph(args.graph_type)
 
         # Set required attributes for human_play to work
         visualizer.adj = visualizer.adj_template
