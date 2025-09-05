@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import type { GraphDef, GraphInfo, ExperimentListResponse, Episode, ExperimentDataSummary } from './types';
-import {ChevronLeft, ChevronRight} from 'lucide-react'
+import {Play, Pause, ChevronFirst, ChevronLast, RefreshCcw, RotateCcw, RotateCw, ChevronLeft, ChevronRight} from 'lucide-react'
 import GraphViewer from './components/GraphViewer';
 import AgentPlayView from './components/AgentPlayView';
 import ModePager from './components/ModePager';
@@ -171,13 +171,15 @@ function App() {
               </select>
             </label>
 
-            <button onClick={() => setPlaying((p) => !p)}>{playing ? 'Pause' : 'Play'}</button>
-            <button onClick={() => { setStepIdx(0); }}>Restart Episode</button>
-            <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }}>Prev Episode</button>
-            <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }}>Next Episode</button>
+            <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause /> : <Play />}</button>
+            <button onClick={() => { setStepIdx(0); }} title='Restart'><RefreshCcw /></button>
+            <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><RotateCcw /></button>
+            <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><RotateCw /></button>
 
-            <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))}>Prev Step</button>
-            <button onClick={() => setStepIdx((s) => s + 1)}>Next Step</button>
+            <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst /></button>
+            <button onClick={() => setStepIdx((s) => s + 1)} title="Next step">
+              <ChevronLast />
+            </button>
 
             <label>
               Speed:&nbsp;
@@ -215,9 +217,11 @@ function App() {
             disabled={pageIndex <= 0}
             style={{
               position: 'absolute', left: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
-              width: 44, height: 44, borderRadius: '999px',
-              background: 'rgba(0,0,0,0.35)', color: 'white',
+              width: 44, height: 44,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: pageIndex > 0 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.10)', color: 'white',
               backdropFilter: 'blur(2px)', cursor: pageIndex > 0 ? 'pointer' : 'not-allowed'
+              
             }}
           >
             <ChevronLeft />
@@ -228,8 +232,9 @@ function App() {
             disabled={pageIndex >= pages.length - 1}
             style={{
               position: 'absolute', right: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
-              width: 44, height: 44, borderRadius: '50px',
-              background: 'rgba(0,0,0,0.35)', color: 'white',
+              width: 44, height: 44,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: pageIndex < pages.length - 1 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.10)', color: 'white',
               backdropFilter: 'blur(2px)', cursor: pageIndex < pages.length - 1 ? 'pointer' : 'not-allowed'
             }}
           >
