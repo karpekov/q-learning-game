@@ -79,9 +79,6 @@ export const GraphViewer: React.FC<Props> = ({
           return (
             <g key={state}>
               <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
-              <text x={x} y={y + 0.6} fontSize={0.4} textAnchor="middle" fill="#212529">
-                {state}
-              </text>
             </g>
           );
         })}

@@ -218,8 +218,9 @@ function App() {
             style={{
               position: 'absolute', left: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
               width: 44, height: 44,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: pageIndex > 0 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.10)', color: 'white',
+              alignItems: 'center', justifyContent: 'center',
+              backgroundColor: 'transparent',
+              color: pageIndex > 0 ? 'black' : 'gray',
               backdropFilter: 'blur(2px)', cursor: pageIndex > 0 ? 'pointer' : 'not-allowed'
               
             }}
@@ -233,8 +234,9 @@ function App() {
             style={{
               position: 'absolute', right: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
               width: 44, height: 44,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: pageIndex < pages.length - 1 ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.10)', color: 'white',
+              alignItems: 'center', justifyContent: 'center',
+              backgroundColor: 'transparent',
+              color: pageIndex < pages.length - 1 ? 'black' : 'gray',
               backdropFilter: 'blur(2px)', cursor: pageIndex < pages.length - 1 ? 'pointer' : 'not-allowed'
             }}
           >

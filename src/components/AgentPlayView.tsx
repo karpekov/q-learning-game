@@ -49,6 +49,9 @@ export const AgentPlayView: React.FC<Props> = ({
   const [path, setPath] = useState<string[]>([start]);
   const [ended, setEnded] = useState<boolean>(false);
   const [episodes, setEpisodes] = useState<number[]>([]); // rewards per finished round
+  const [easyMode, setEasyMode] = useState<boolean>(false);
+  const [stepCost, setStepCost] = useState<number>(0); // cost per move
+  const [stochasticity, setStochasticity] = useState<number>(0); // 0..1 chance to deviate
 
   const latestReward = episodes.length ? episodes[episodes.length - 1] : null;
   const bestReward = episodes.length ? Math.max(...episodes) : null;
@@ -56,22 +59,74 @@ export const AgentPlayView: React.FC<Props> = ({
   const neighbors = useMemo(() => (current && adjacency[current]) || [], [adjacency, current]);
 
   const visibleNodes = useMemo(() => {
+    if (easyMode) {
+      return new Set<string>(Object.keys(coords));
+    }
     const set = new Set<string>(visited);
     if (current) set.add(current);
     neighbors.forEach((n) => set.add(n));
     return set;
-  }, [visited, current, neighbors]);
+  }, [visited, current, neighbors, easyMode, coords]);
 
-  function moveTo(next: string) {
+  function pickStochasticNeighbor(intended: string): string {
+    // With probability (1 - p) go intended; with p/2 go left; with p/2 go right
+    const p = Math.max(0, Math.min(1, stochasticity));
+    if (p === 0 || !coords[current]) return intended;
+    const opts = (adjacency[current] || []).filter((n) => !!coords[n]);
+    if (!opts.includes(intended)) return intended;
+
+    const c = coords[current];
+    const i = coords[intended];
+    const vx = i[0] - c[0];
+    const vy = i[1] - c[1];
+    const vLen = Math.hypot(vx, vy) || 1;
+    const ox = vx / vLen;
+    const oy = vy / vLen;
+    // Perpendiculars
+    const leftX = -oy, leftY = ox;
+    const rightX = oy, rightY = -ox;
+
+    let leftNeighbor: string | null = null;
+    let leftScore = -Infinity;
+    let rightNeighbor: string | null = null;
+    let rightScore = -Infinity;
+    for (const n of opts) {
+      if (n === intended) continue;
+      const nn = coords[n];
+      const wx = nn[0] - c[0];
+      const wy = nn[1] - c[1];
+      const wLen = Math.hypot(wx, wy) || 1;
+      const ux = wx / wLen;
+      const uy = wy / wLen;
+      const dl = ux * leftX + uy * leftY;
+      const dr = ux * rightX + uy * rightY;
+      if (dl > leftScore) { leftScore = dl; leftNeighbor = n; }
+      if (dr > rightScore) { rightScore = dr; rightNeighbor = n; }
+    }
+
+    const r = Math.random();
+    if (r < (p / 2)) {
+      return leftNeighbor || intended;
+    } else if (r < p) {
+      return rightNeighbor || intended;
+    }
+    return intended;
+  }
+
+  function moveTo(intended: string) {
     if (ended) return; // round is over
-    if (!neighbors.includes(next)) return; // restrict to valid moves
-    setCurrent(next);
-    setVisited((prev) => new Set<string>(prev).add(next));
-    setPath((prev) => [...prev, next]);
-    if (next in terminalRewards) {
-      const reward = terminalRewards[next];
+    if (!neighbors.includes(intended)) return; // restrict to valid moves
+    const actual = pickStochasticNeighbor(intended);
+    setCurrent(actual);
+    setVisited((prev) => new Set<string>(prev).add(actual));
+    setPath((prev) => [...prev, actual]);
+    if (actual in terminalRewards) {
+      const reward = terminalRewards[actual];
+      // Moves including this new move equals current path length
+      const moves = path.length; // since new path will be path.length + 1
+      const total = -moves * stepCost + reward;
       setEnded(true);
-      setEpisodes((prev) => [...prev, reward]);
+      setEpisodes((prev) => [...prev, total]);
     }
   }
 
@@ -174,20 +229,66 @@ export const AgentPlayView: React.FC<Props> = ({
         <button onClick={undo} disabled={ended} title={ended ? 'Round finished' : undefined}>Undo Move</button>
         <div><strong>Current:</strong> {current}</div>
         <div><strong>Visited:</strong> {visited.size}</div>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>Step cost:</span>
+          <input
+            type="range"
+            min={0}
+            max={5}
+            step={0.1}
+            value={stepCost}
+            onChange={(e) => setStepCost(parseFloat(e.target.value))}
+          />
+          <span style={{ minWidth: 36, textAlign: 'right' }}>{stepCost.toFixed(1)}</span>
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>Stochasticity:</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={Math.round(stochasticity * 100)}
+            onChange={(e) => setStochasticity(Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100)))}
+          />
+          <span style={{ minWidth: 36, textAlign: 'right' }}>{Math.round(stochasticity * 100)}%</span>
+        </label>
+        
       </div>
       
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', fontSize: 14 }}>
+        {(() => {
+          const moves = Math.max(0, path.length - 1);
+          const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
+          const currentScore = -moves * stepCost + (ended ? term : 0);
+          return (
+            <>
+              <div><strong>Moves:</strong> {moves}</div>
+              <div><strong>Current:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
+            </>
+          );
+        })()}
         <div><strong>Episodes:</strong> {episodes.length}</div>
-        <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward}` : `${latestReward}`) : '-'}</div>
-        <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward}` : `${bestReward}`) : '-'}</div>
+        <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
+        <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
         {ended && (
           <div style={{ color: '#0d6efd' }}>
-            Round finished. Reward: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}
+            Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
           </div>
         )}
         <></>
         <div style={{ fontSize: 12, color: '#6c757d' }}>
           Hint: Click neighboring nodes or use the arrow keys to move.
+        </div>
+        <div>
+          <label>
+            <input type="checkbox" 
+              checked={easyMode} 
+              onChange={(e) => setEasyMode(e.target.checked)}
+              style={{ marginRight: 4 }}
+            />
+            Easy Mode
+          </label>
         </div>
       </div>
 
@@ -242,7 +343,9 @@ export const AgentPlayView: React.FC<Props> = ({
             const hasVisited = visited.has(state);
             const showTerminalColor = isTerminal && hasVisited;
             const fill = isCurrent
-              ? '#ffcc00'
+              ? showTerminalColor 
+                ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7') 
+                : '#ffcc00'
               : showTerminalColor
                 ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
                 : '#e9ecef';
@@ -251,9 +354,6 @@ export const AgentPlayView: React.FC<Props> = ({
             return (
               <g key={state} style={{ cursor: isNeighbor && !ended ? 'pointer' : 'default' }} onClick={() => isNeighbor && !ended && moveTo(state)}>
                 <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
-                <text x={x} y={y + 0.6} fontSize={0.4} textAnchor="middle" fill="#212529" opacity={opacity}>
-                  {state}
-                </text>
               </g>
             );
           })}
