@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api';
 import type { GraphDef, GraphInfo, ExperimentListResponse, Episode, ExperimentDataSummary } from './types';
+import {ChevronLeft, ChevronRight} from 'lucide-react'
 import GraphViewer from './components/GraphViewer';
+import AgentPlayView from './components/AgentPlayView';
+import ModePager from './components/ModePager';
 
 const speedOptions = ["Slow", "Medium", "Fast", "Very Fast"] as const;
 const speedFrames = [800, 400, 200, 100]; // ms per step
 
 function App() {
+  const [mode, setMode] = useState<'playback' | 'play'>('play');
   const [graphs, setGraphs] = useState<GraphInfo[]>([]);
   const [graphType, setGraphType] = useState<string>('custom_rooms');
   const [graphDef, setGraphDef] = useState<GraphDef | null>(null);
@@ -20,6 +24,22 @@ function App() {
   const [playing, setPlaying] = useState<boolean>(false);
   const [speedIndex, setSpeedIndex] = useState<number>(1);
 
+  // Responsive viewer sizing
+  const [vw, setVw] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [vh, setVh] = useState<number>(typeof window !== 'undefined' ? window.innerHeight : 800);
+  useEffect(() => {
+    function onResize() {
+      setVw(window.innerWidth);
+      setVh(window.innerHeight);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const horizontalPadding = 32; // matches page padding
+  const reservedTop = 220; // header + controls approx
+  const viewerWidth = Math.max(320, vw - horizontalPadding);
+  const viewerHeight = Math.max(300, vh - reservedTop);
+
   // Load graphs on mount
   useEffect(() => {
     api.graphs().then(setGraphs).catch(console.error);
@@ -28,16 +48,22 @@ function App() {
   // Load graph def when graphType changes
   useEffect(() => {
     api.graphDef(graphType).then(setGraphDef).catch(console.error);
-    // Load experiments for graph
-    api.experiments(graphType).then((res) => {
-      setExpList(res);
-      const first = res.items[0]?.id || '';
-      setExpId(first);
-    }).catch(console.error);
-  }, [graphType]);
+    if (mode === 'playback') {
+      // Load experiments for graph
+      api.experiments(graphType).then((res) => {
+        setExpList(res);
+        const first = res.items[0]?.id || '';
+        setExpId(first);
+      }).catch(console.error);
+    }
+  }, [graphType, mode]);
 
-  // Load experiment data when expId changes
+  // Load experiment data when expId changes (only in playback mode)
   useEffect(() => {
+    if (mode !== 'playback') {
+      setExpData(null);
+      return;
+    }
     if (!expId) {
       setExpData(null);
       return;
@@ -47,12 +73,12 @@ function App() {
       setEpisodeIdx(0);
       setStepIdx(0);
     }).catch(console.error);
-  }, [graphType, expId]);
+  }, [graphType, expId, mode]);
 
   // Playback loop
   const timerRef = useRef<number | null>(null);
   useEffect(() => {
-    if (!playing) {
+    if (mode !== 'playback' || !playing) {
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
       return;
@@ -82,7 +108,7 @@ function App() {
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [playing, speedIndex, expData]);
+  }, [playing, speedIndex, expData, mode]);
 
   const currentEpisode: Episode | undefined = useMemo(() => {
     return expData?.episodes?.[episodeIdx];
@@ -109,12 +135,22 @@ function App() {
     return seq;
   }, [currentEpisode, stepIdx]);
 
+  // Pager helpers for edge arrows
+  const pages = ['play', 'playback'] as const;
+  const pageIndex = mode === 'play' ? 0 : 1;
+  const goPage = (i: number) => {
+    const clamped = Math.max(0, Math.min(pages.length - 1, i));
+    setMode(pages[clamped]);
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
-      <h2 style={{ margin: 0 }}>Q‑Learning Visualizer (Web)</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16, minWidth: '100vw', minHeight: '100vh', boxSizing: 'border-box' }}>
+      <h2 style={{ margin: 0 }}>Q-Learning Visualizer (Web)</h2>
 
       {/* Controls: graph + experiment selection */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <ModePager mode={mode === 'play' ? 'play' : 'playback'} onChange={(m) => setMode(m)} />
+
         <label>
           Graph:&nbsp;
           <select value={graphType} onChange={(e) => setGraphType(e.target.value)}>
@@ -124,57 +160,118 @@ function App() {
           </select>
         </label>
 
-        <label>
-          Experiment:&nbsp;
-          <select value={expId} onChange={(e) => setExpId(e.target.value)} style={{ minWidth: 200 }}>
-            {expList?.items.map((it) => (
-              <option key={it.id} value={it.id}>{it.name}</option>
-            ))}
-          </select>
-        </label>
+        {mode === 'playback' && (
+          <>
+            <label>
+              Experiment:&nbsp;
+              <select value={expId} onChange={(e) => setExpId(e.target.value)} style={{ minWidth: 200 }}>
+                {expList?.items.map((it) => (
+                  <option key={it.id} value={it.id}>{it.name}</option>
+                ))}
+              </select>
+            </label>
 
-        <button onClick={() => setPlaying((p) => !p)}>{playing ? 'Pause' : 'Play'}</button>
-        <button onClick={() => { setStepIdx(0); }}>Restart Episode</button>
-        <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }}>Prev Episode</button>
-        <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }}>Next Episode</button>
+            <button onClick={() => setPlaying((p) => !p)}>{playing ? 'Pause' : 'Play'}</button>
+            <button onClick={() => { setStepIdx(0); }}>Restart Episode</button>
+            <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }}>Prev Episode</button>
+            <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }}>Next Episode</button>
 
-        <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))}>Prev Step</button>
-        <button onClick={() => setStepIdx((s) => s + 1)}>Next Step</button>
+            <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))}>Prev Step</button>
+            <button onClick={() => setStepIdx((s) => s + 1)}>Next Step</button>
 
-        <label>
-          Speed:&nbsp;
-          <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
-            {speedOptions.map((name, i) => (
-              <option key={name} value={i}>{name}</option>
-            ))}
-          </select>
-        </label>
+            <label>
+              Speed:&nbsp;
+              <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
+                {speedOptions.map((name, i) => (
+                  <option key={name} value={i}>{name}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
       </div>
 
-      {/* Info */}
-      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div>
-          <strong>Episode:</strong> {episodeIdx + 1}/{expData?.episodes?.length || 0}
+      {mode === 'playback' && (
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <strong>Episode:</strong> {episodeIdx + 1}/{expData?.episodes?.length || 0}
+          </div>
+          <div>
+            <strong>Step:</strong> {Math.min(stepIdx, currentEpisode?.steps?.length || 0)}/{currentEpisode?.steps?.length || 0}
+          </div>
+          <div>
+            <strong>Reward:</strong> {currentEpisode?.total_reward?.toFixed(2)}
+          </div>
         </div>
-        <div>
-          <strong>Step:</strong> {Math.min(stepIdx, currentEpisode?.steps?.length || 0)}/{currentEpisode?.steps?.length || 0}
-        </div>
-        <div>
-          <strong>Reward:</strong> {currentEpisode?.total_reward?.toFixed(2)}
-        </div>
-      </div>
+      )}
 
-      {/* Graph Viewer */}
+      {/* Viewers with smooth transition */}
       {graphDef && (
-        <GraphViewer
-          coords={graphDef.coords}
-          adjacency={graphDef.adjacency}
-          terminalRewards={graphDef.terminal_rewards}
-          currentState={currentState}
-          path={pathStates}
-          width={960}
-          height={640}
-        />
+        <div style={{ position: 'relative', width: '100%', height: viewerHeight }}>
+          {/* Edge pagination buttons */}
+          <button
+            aria-label="Previous mode"
+            onClick={() => goPage(pageIndex - 1)}
+            disabled={pageIndex <= 0}
+            style={{
+              position: 'absolute', left: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
+              width: 44, height: 44, borderRadius: '999px',
+              background: 'rgba(0,0,0,0.35)', color: 'white',
+              backdropFilter: 'blur(2px)', cursor: pageIndex > 0 ? 'pointer' : 'not-allowed'
+            }}
+          >
+            <ChevronLeft />
+          </button>
+          <button
+            aria-label="Next mode"
+            onClick={() => goPage(pageIndex + 1)}
+            disabled={pageIndex >= pages.length - 1}
+            style={{
+              position: 'absolute', right: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
+              width: 44, height: 44, borderRadius: '50px',
+              background: 'rgba(0,0,0,0.35)', color: 'white',
+              backdropFilter: 'blur(2px)', cursor: pageIndex < pages.length - 1 ? 'pointer' : 'not-allowed'
+            }}
+          >
+            <ChevronRight />
+          </button>
+          <div
+            style={{
+              position: 'absolute', inset: 0,
+              opacity: mode === 'playback' ? 1 : 0,
+              transform: `translateX(${mode === 'playback' ? '0%' : '-5%'})`,
+              transition: 'opacity 250ms ease, transform 250ms ease',
+              pointerEvents: mode === 'playback' ? 'auto' : 'none',
+            }}
+          >
+            <GraphViewer
+              coords={graphDef.coords}
+              adjacency={graphDef.adjacency}
+              terminalRewards={graphDef.terminal_rewards}
+              currentState={currentState}
+              path={pathStates}
+              width={viewerWidth}
+              height={viewerHeight}
+            />
+          </div>
+          <div
+            style={{
+              position: 'absolute', inset: 0,
+              opacity: mode === 'play' ? 1 : 0,
+              transform: `translateX(${mode === 'play' ? '0%' : '5%'})`,
+              transition: 'opacity 250ms ease, transform 250ms ease',
+              pointerEvents: mode === 'play' ? 'auto' : 'none',
+            }}
+          >
+            <AgentPlayView
+              coords={graphDef.coords}
+              adjacency={graphDef.adjacency}
+              terminalRewards={graphDef.terminal_rewards}
+              width={viewerWidth}
+              height={viewerHeight}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
