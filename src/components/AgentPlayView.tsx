@@ -220,13 +220,27 @@ export const AgentPlayView: React.FC<Props> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ 
+        position: 'absolute', 
+        bottom: 8, 
+        left: 8,
+        gap: 24, 
+        alignItems: 'center', 
+        zIndex: 50, 
+        display: 'flex', 
+        flexWrap: 'wrap',
+        backgroundColor: 'rgba(234,238,224,0.7)', //#dfd8ab
+        padding: 12, 
+        borderRadius: 8,
+        backdropFilter: 'blur(4px)',
+        maxWidth: '20%',
+      }}>
         {ended ? 
-          <button onClick={reset} style={{ background: '#47a851'}}>Start New Round</button> 
+          <button onClick={reset} style={{ background: '#a8e6cf'}}>Start New Round</button> 
           : 
-          <button onClick={reset} style={{ background: '#f40c0c'}}>Reset to Start</button>
+          <button onClick={reset} style={{ background: '#ffaaa7'}}>Reset to Start</button>
         }
-        <button onClick={undo} disabled={ended} title={ended ? 'Round finished' : undefined}>Undo Move</button>
+        <button onClick={undo} disabled={ended} title={ended ? 'Round finished' : undefined} style={{ cursor: ended ? 'not-allowed' : 'pointer' }}>Undo Move</button>
         <div><strong>Current:</strong> {current}</div>
         <div><strong>Visited:</strong> {visited.size}</div>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -253,33 +267,6 @@ export const AgentPlayView: React.FC<Props> = ({
           />
           <span style={{ minWidth: 36, textAlign: 'right' }}>{Math.round(stochasticity * 100)}%</span>
         </label>
-        
-      </div>
-      
-      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', fontSize: 14 }}>
-        {(() => {
-          const moves = Math.max(0, path.length - 1);
-          const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
-          const currentScore = -moves * stepCost + (ended ? term : 0);
-          return (
-            <>
-              <div><strong>Moves:</strong> {moves}</div>
-              <div><strong>Current:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
-            </>
-          );
-        })()}
-        <div><strong>Episodes:</strong> {episodes.length}</div>
-        <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
-        <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
-        {ended && (
-          <div style={{ color: '#0d6efd' }}>
-            Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
-          </div>
-        )}
-        <></>
-        <div style={{ fontSize: 12, color: '#6c757d' }}>
-          Hint: Click neighboring nodes or use the arrow keys to move.
-        </div>
         <div>
           <label>
             <input type="checkbox" 
@@ -292,7 +279,7 @@ export const AgentPlayView: React.FC<Props> = ({
         </div>
       </div>
 
-      <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} style={{ border: '1px solid #e0e0e0', borderRadius: 8, background: '#f8f9fa' }}>
+      <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} style={{ borderRadius: 8, background: '#f8f9fa' }}>
         {/* Edges from current to neighbors (highlighted) */}
         <g stroke="#0d6efd" strokeWidth={0.08} strokeOpacity={0.7}>
           {neighbors.map((n) => {
@@ -345,7 +332,7 @@ export const AgentPlayView: React.FC<Props> = ({
             const fill = isCurrent
               ? showTerminalColor 
                 ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7') 
-                : '#ffcc00'
+                : '#fdf0ac'
               : showTerminalColor
                 ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
                 : '#e9ecef';
@@ -359,6 +346,34 @@ export const AgentPlayView: React.FC<Props> = ({
           })}
         </g>
       </svg>
+
+
+      {/* Stats */}
+      <div style={{ position: 'absolute', top:4, left: 4, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', fontSize: 14, zIndex: 50, color: '#333' }}>
+        {(() => {
+          const moves = Math.max(0, path.length - 1);
+          const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
+          const currentScore = -moves * stepCost + (ended ? term : 0);
+          return (
+            <>
+              <div><strong>Moves:</strong> {moves}</div>
+              <div><strong>Current:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
+            </>
+          );
+        })()}
+        <div><strong>Episodes:</strong> {episodes.length}</div>
+        <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
+        <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
+        {ended && (
+          <div style={{ color: '#0d6efd' }}>
+            Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
+          </div>
+        )}
+        <></>
+        <div style={{ fontSize: 12, color: '#6c757d' }}>
+          Hint: Click neighboring nodes or use the arrow keys to move.
+        </div>
+      </div>
     </div>
   );
 };

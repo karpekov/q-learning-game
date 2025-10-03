@@ -62,8 +62,7 @@ export const ModePager: React.FC<Props> = ({ mode, onChange }) => {
               style={{
                 padding: '6px 12px',
                 border: 'none',
-                background: active ? '#0d6efd' : 'transparent',
-                color: active ? 'white' : '#0d6efd',
+                background: active ? '#eaeee0' : 'transparent',
                 cursor: 'pointer',
                 outline: 'none',
               }}
