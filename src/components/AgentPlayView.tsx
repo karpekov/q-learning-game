@@ -433,7 +433,7 @@ export const AgentPlayView: React.FC<Props> = ({
               </div>
               {ended && (
                 <div className="agent-stats__completed">
-                  Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
+                  Round finished. Terminal: <span className={terminalRewards[current] > 0 ? 'agent-stats__positive' : 'agent-stats__negative'}>{terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}</span>. Total with step cost applied: <span className={episodes[episodes.length - 1] > 0 ? 'agent-stats__positive' : 'agent-stats__negative'}>{episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}</span>
                 </div>
               )}
             </div>

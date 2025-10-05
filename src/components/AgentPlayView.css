@@ -168,6 +168,16 @@
   color: #6c757d;
 }
 
+.agent-stats__positive {
+  color: #a8e6cf;
+  font-weight: 600;
+}
+
+.agent-stats__negative {
+  color: #ffaaa7;
+  font-weight: 600;
+}
+
 .agent-info-tip {
   position: absolute;
   bottom: 125%;
