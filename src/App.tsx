@@ -36,8 +36,9 @@ function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  
   const horizontalPadding = 32; // matches page padding
-  const reservedTop = 220; // header + controls approx
+  const reservedTop = 160; // header + controls approx
   const viewerWidth = Math.max(320, vw - horizontalPadding);
   const viewerHeight = Math.max(300, vh - reservedTop);
 

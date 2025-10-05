@@ -93,7 +93,8 @@
   position: relative;
   bottom: 100%;
   left: 50%;
-  transform: translateY(0) scale(0.92);
+  transform: translate(-6px, 6px) scale(0.92);
+  transform-origin: bottom left;
   opacity: 0;
   pointer-events: none;
   background-color: rgba(33, 37, 41, 0.85);
@@ -111,7 +112,7 @@
 
 .agent-info-tip.is-visible {
   opacity: 1;
-  transform: translateY(-6px) scale(1);
+  transform: translate(-6px, 0px) scale(1);
 }
 
 .agent-play-field {
