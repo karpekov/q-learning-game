@@ -70,3 +70,99 @@ button:focus
 @theme {
   --font-space-grotesk: 'Space Grotesk', sans-serif;
 }
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  width: 100vw;
+  min-width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+.snap-section {
+  min-height: 100vh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+.snap-section--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-title {
+  font-family: var(--font-space-grotesk);
+  font-weight: 700;
+  font-size: 2em;
+}
+
+.app-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.select-wide {
+  min-width: 150px;
+}
+
+.viewer-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.mode-switch-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-100%);
+  z-index: 5;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  backdrop-filter: blur(2px);
+  border: none;
+  padding: 0;
+  color: black;
+  cursor: pointer;
+}
+.mode-switch-button:disabled {
+  color: gray;
+  cursor: not-allowed;
+}
+.mode-switch-button--left {
+  left: 8px;
+}
+.mode-switch-button--right {
+  right: 8px;
+}
+
+.viewer-pane {
+  position: absolute;
+  inset: 0;
+  transition: opacity 250ms ease, transform 250ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+.viewer-pane--playback {
+  transform: translateX(100%);
+}
+.viewer-pane--play {
+  transform: translateX(-100%);
+}
+.viewer-pane.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0%);
+}

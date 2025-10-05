@@ -1,0 +1,111 @@
+.agent-play-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-controls-panel {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding: 12px;
+  max-width: 20%;
+  border-radius: 8px;
+  background-color: rgba(234, 238, 224, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+}
+
+.agent-controls-panel .agent-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-control-btn--success {
+  background-color: #a8e6cf;
+}
+
+.agent-control-btn--danger {
+  background-color: #ffaaa7;
+}
+
+.agent-control-btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.agent-controls-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.agent-controls-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-range-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agent-range-value {
+  min-width: 36px;
+  text-align: right;
+}
+
+.agent-checkbox-row {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-checkbox-input {
+  margin-right: 4px;
+}
+
+.agent-play-field {
+  display: block;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+.agent-node {
+  cursor: default;
+}
+
+.agent-node--interactive {
+  cursor: pointer;
+}
+
+.agent-stats {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  font-size: 14px;
+  z-index: 50;
+  color: #333;
+}
+
+.agent-stats__completed {
+  color: #0d6efd;
+}
+
+.agent-stats__hint {
+  font-size: 12px;
+  color: #6c757d;
+}
+

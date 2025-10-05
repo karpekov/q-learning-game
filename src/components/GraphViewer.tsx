@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import type { Coord } from '../types';
+import type { Coord, ExperimentDataSummary } from '../types';
+import { Info } from 'lucide-react';
+import './GraphViewer.css';
 
 type PlaybackStats = {
   episodeIndex: number;
@@ -11,6 +13,8 @@ type PlaybackStats = {
 
 type PolicyValue = string | number;
 
+type QValuesMap = ExperimentDataSummary['q_values'];
+
 type Props = {
   coords: Record<string, Coord>;
   adjacency: Record<string, string[]>;
@@ -21,6 +25,14 @@ type Props = {
   height?: number;
   playbackStats?: PlaybackStats;
   policy?: Record<string, PolicyValue> | null;
+  qValues?: QValuesMap | null;
+  hyperParams?: {
+    alpha?: number | null;
+    epsilon?: number | null;
+    gamma?: number | null;
+    stepCost?: number | null;
+    stochasticity?: number | null;
+  } | null;
 };
 
 function computeBounds(coords: Record<string, Coord>) {
@@ -33,6 +45,35 @@ function computeBounds(coords: Record<string, Coord>) {
   return { minX, maxX, minY, maxY };
 }
 
+function formatQValue(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toFixed(0);
+  if (abs >= 100) return value.toFixed(1);
+  return value.toFixed(2);
+}
+
+function qValueColor(value: number): string {
+  if (!Number.isFinite(value)) return '#495057';
+  const scaled = Math.max(-1, Math.min(1, value / 400));
+  const signHue = scaled >= 0 ? 140 : 5; // green-ish vs red-ish
+  const magnitude = Math.abs(scaled);
+  const saturation = 65 + magnitude * 35; // 55%..90%
+  const lightness = 58 - magnitude * 28; // 58%..30%
+  return `hsl(${signHue} ${saturation}% ${lightness}%)`;
+}
+
+function angleToArrow(angle: number): string {
+  const normalized = ((angle % 360) + 360) % 360;
+  if (normalized < 22.5 || normalized >= 337.5) return '→';
+  if (normalized < 67.5) return '↗';
+  if (normalized < 112.5) return '↑';
+  if (normalized < 157.5) return '↖';
+  if (normalized < 202.5) return '←';
+  if (normalized < 247.5) return '↙';
+  if (normalized < 292.5) return '↓';
+  return '↘';
+}
+
 export const GraphViewer: React.FC<Props> = ({
   coords,
   adjacency,
@@ -40,10 +81,13 @@ export const GraphViewer: React.FC<Props> = ({
   currentState,
   path = [],
   width = 960,
-  height = 640,
+  height = 64,
   playbackStats,
   policy,
+  qValues,
+  hyperParams,
 }) => {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   const { minX, maxX, minY, maxY } = computeBounds(coords);
   const pad = 1;
   const vbX = minX - pad;
@@ -123,60 +167,236 @@ export const GraphViewer: React.FC<Props> = ({
     return arrows;
   }, [policy, coords, adjacency]);
 
-  const [showPolicy, setShowPolicy] = useState(true);
+  const qValueMap = React.useMemo(() => {
+    if (!qValues) return null;
+    return qValues as Record<string, Record<string, number>>;
+  }, [qValues]);
+
+  const qValueLabels = React.useMemo(() => {
+    if (!qValueMap) return [] as {
+      key: string;
+      x: number;
+      y: number;
+      label: string;
+      color: string;
+    }[];
+
+    const labels: {
+      key: string;
+      x: number;
+      y: number;
+      label: string;
+      color: string;
+    }[] = [];
+
+    for (const [from, neighbors] of Object.entries(adjacency)) {
+      const fromCoord = coords[from];
+      if (!fromCoord) continue;
+      const stateValues = qValueMap[from];
+      if (!stateValues) continue;
+
+      neighbors.forEach((to, idx) => {
+        const toCoord = coords[to];
+        if (!toCoord) return;
+
+        const idxKey = String(idx);
+        let value = stateValues[to];
+        if (value == null && Object.prototype.hasOwnProperty.call(stateValues, idxKey)) {
+          value = stateValues[idxKey];
+        }
+        if (value == null) return;
+
+        const [sx, sy] = fromCoord;
+        const [tx, ty] = toCoord;
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const length = Math.hypot(dx, dy) || 1;
+
+        const along = Math.min(0.35, Math.max(0.18, 0.22 + idx * 0.04));
+        const baseX = sx + dx * along;
+        const baseY = sy + dy * along;
+
+        const perpX = (-dy / length) * 0.18;
+        const perpY = (dx / length) * 0.18;
+        const direction = idx % 2 === 0 ? 1 : -1;
+
+        labels.push({
+          key: `${from}->${to}-${idx}`,
+          x: baseX + perpX * direction,
+          y: baseY + perpY * direction,
+          label: formatQValue(value),
+          color: qValueColor(value),
+        });
+      });
+    }
+
+    return labels;
+  }, [qValueMap, adjacency, coords]);
+
+  const [showPolicy, setShowPolicy] = useState(false);
+  const [showQValues, setShowQValues] = useState(false);
+  const [showInfoTip, setShowInfoTip] = useState(false);
+  const [tooltip, setTooltip] = useState<{
+    node: string;
+    x: number;
+    y: number;
+    entries: { target: string; label: string; color: string; direction: string }[];
+  } | null>(null);
 
   useEffect(() => {
-    if (policy) {
-      setShowPolicy(true);
+    if (!qValueMap) {
+      setTooltip(null);
     }
-  }, [policy]);
+  }, [qValueMap]);
+
+  const resolveQValue = React.useCallback(
+    (state: string, to: string, idx: number): number | null => {
+      if (!qValueMap) return null;
+      const stateValues = qValueMap[state];
+      if (!stateValues) return null;
+      let value = stateValues[to];
+      if (value == null) {
+        const idxKey = String(idx);
+        if (Object.prototype.hasOwnProperty.call(stateValues, idxKey)) {
+          value = stateValues[idxKey];
+        }
+      }
+      return value ?? null;
+    },
+    [qValueMap]
+  );
+
+  const updateTooltip = React.useCallback(
+    (state: string, event: React.MouseEvent<SVGGElement, MouseEvent>) => {
+      if (!qValueMap) return;
+      const neighbors = adjacency[state] || [];
+      const center = coords[state];
+      const entries = neighbors
+        .map((neighbor, idx) => {
+          const value = resolveQValue(state, neighbor, idx);
+          if (value == null) return null;
+          let arrow = '';
+          const neighborCoord = coords[neighbor];
+          if (center && neighborCoord) {
+            const [sx, sy] = center;
+            const [tx, ty] = neighborCoord;
+            const dx = tx - sx;
+            const dy = ty - sy;
+            if (dx !== 0 || dy !== 0) {
+              const angle = Math.atan2(-dy, dx) * (180 / Math.PI);
+              arrow = angleToArrow(angle);
+            }
+          }
+          return {
+            target: neighbor,
+            label: formatQValue(value),
+            color: qValueColor(value),
+            direction: arrow,
+          };
+        })
+        .filter((entry): entry is { target: string; label: string; color: string; direction: string } => entry !== null);
+
+      if (entries.length === 0) {
+        setTooltip(null);
+        return;
+      }
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      const x = rect ? event.clientX - rect.left : event.clientX;
+      const y = rect ? event.clientY - rect.top : event.clientY;
+
+      setTooltip({
+        node: state,
+        x,
+        y,
+        entries,
+      });
+    },
+    [adjacency, coords, qValueMap, resolveQValue]
+  );
 
   return (
-    <div style={{ position: 'relative', width, height }}>
+    <div ref={containerRef} className="graph-viewer-root" style={{ width, height }}>
       {playbackStats && (
         <div
-          style={{
-            position: 'absolute',
-            gap: 24,
-            alignItems: 'center',
-            bottom: 8,
-            left: 8,
-            zIndex: 50,
-            display: 'flex',
-            backgroundColor: 'rgba(234,238,224,0.7)',
-            padding: 12,
-            borderRadius: 8,
-            backdropFilter: 'blur(4px)',
-          }}
+          className="graph-stats-panel"
         >
-          <div>
-            <strong>Episode:</strong> {playbackStats.episodeIndex + 1}/{playbackStats.episodeCount}
+          <div className="graph-stats-summary">
+            <p><strong>Alpha:</strong> {hyperParams?.alpha != null ? hyperParams.alpha.toFixed(6) : '-'}</p>
+            <p><strong>Epsilon:</strong> {hyperParams?.epsilon != null ? hyperParams.epsilon.toFixed(6) : '-'}</p>
+            <p><strong>Gamma:</strong> {hyperParams?.gamma != null ? hyperParams.gamma.toFixed(3) : '-'}</p>
+            <p><strong>Step cost:</strong> {hyperParams?.stepCost != null ? hyperParams.stepCost.toFixed(3) : '-'}</p>
+            <p><strong>Stochasticity:</strong> {hyperParams?.stochasticity != null ? `${(hyperParams.stochasticity * 100).toFixed(1)}%` : '-'}</p>
           </div>
-          <div>
-            <strong>Step:</strong> {Math.min(playbackStats.stepIndex, playbackStats.stepCount)}/{playbackStats.stepCount}
+          <div className="graph-stats-row">
+            <p><strong>Episode:</strong> {playbackStats.episodeIndex + 1}/{playbackStats.episodeCount}</p>
+            <p><strong>Step:</strong> {Math.min(playbackStats.stepIndex, playbackStats.stepCount)}/{playbackStats.stepCount}</p>
+            <p><strong>Reward:</strong> {playbackStats.totalReward != null ? playbackStats.totalReward.toFixed(2) : '-'}</p>
           </div>
-          <div>
-            <strong>Reward:</strong> {playbackStats.totalReward != null ? playbackStats.totalReward.toFixed(2) : '-'}
-          </div>
-          <div>
-            <label style={{ userSelect: 'none' }}>
+          <div className="graph-stats-checks">
+            <label className="graph-stats-checkbox">
               <input
                 type="checkbox"
                 checked={showPolicy}
                 onChange={() => setShowPolicy((v) => !v)}
                 disabled={!policy}
               />{' '}
-              Show Policy
+              Show Final Policy
+            </label>
+            <label className="graph-stats-checkbox">
+              <input
+                type="checkbox"
+                checked={showQValues}
+                onChange={() => setShowQValues((v) => !v)}
+                disabled={!qValues}
+              />{' '}
+              Show Final Q-values
             </label>
           </div>
         </div>
       )}
 
+      {/* Info Tip */}
+      <div
+        className="graph-info-trigger"
+        onMouseEnter={() => setShowInfoTip(true)}
+        onMouseLeave={() => setShowInfoTip(false)}
+        onFocus={() => setShowInfoTip(true)}
+        onBlur={() => setShowInfoTip(false)}
+        tabIndex={0}
+        role="button"
+        aria-label="Graph viewer tips"
+      >
+        <div className={`graph-info-bubble ${showInfoTip ? 'is-visible' : ''}`}>
+          <div
+            className="graph-info-content"
+          >
+            <div className="graph-info-title">Key</div>
+            <div className="graph-info-entry">
+              <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
+                <circle cx={15} cy={20} r={6} fill="#a8e6cf" />
+              </svg>
+              <p>Positive terminal state</p>
+            </div>
+            <div className="graph-info-entry">
+              <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
+                <circle cx={15} cy={20} r={6} fill="#ffaaa7" />
+              </svg>
+              <p>Negative terminal state</p>
+            </div>
+          </div>
+        </div>
+        <div className="graph-info-trigger__icon">
+          <Info />
+        </div>
+      </div>
+
+      {/* SVG elements stacked in order of rendering (back to front) */}
       <svg
         width={width}
         height={height}
         viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-        style={{ borderRadius: 8, background: '#f8f9fa' }}
+        className="graph-viewer-canvas"
       >
         <defs>
           <marker
@@ -248,13 +468,61 @@ export const GraphViewer: React.FC<Props> = ({
             const stroke = '#343a40';
             const r = 0.25;
             return (
-              <g key={state}>
+              <g
+                key={state}
+                onMouseEnter={(event) => updateTooltip(state, event)}
+                onMouseMove={(event) => updateTooltip(state, event)}
+                onMouseLeave={() => setTooltip(null)}
+              >
                 <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
               </g>
             );
           })}
         </g>
+
+        {/* Q-value labels */}
+        {showQValues && qValueLabels.length > 0 && (
+          <g>
+            {qValueLabels.map(({ key, x, y, label, color }) => (
+              <text
+                key={`q-${key}`}
+                x={x}
+                y={y}
+                fontSize={0.2}
+                fill={color}
+                textAnchor="middle"
+                alignmentBaseline="middle"
+                paintOrder="stroke"
+                stroke="#343a40"
+                strokeWidth={0.01}
+                pointerEvents="none"
+              >
+                {label}
+              </text>
+            ))}
+          </g>
+        )}
       </svg>
+
+      {tooltip && (
+        <div
+          className="graph-tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          <div className="graph-tooltip-title">{tooltip.node}</div>
+          <div className="graph-tooltip-list">
+            {tooltip.entries.map((entry) => (
+              <div key={`${tooltip.node}-${entry.target}`} className="graph-tooltip-entry">
+                <span className="graph-tooltip-target">
+                  {entry.direction && <span className="graph-tooltip-direction">{entry.direction}</span>}
+                  {entry.target}
+                </span>
+                <span className="graph-tooltip-value" style={{ color: entry.color }}>{entry.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

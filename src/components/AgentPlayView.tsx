@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Coord } from '../types';
+import './AgentPlayView.css';
 
 type Props = {
   coords: Record<string, Coord>;
@@ -219,67 +220,67 @@ export const AgentPlayView: React.FC<Props> = ({
   }, [current, neighbors, coords, ended]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ 
-        position: 'absolute', 
-        bottom: 8, 
-        left: 8,
-        gap: 24, 
-        alignItems: 'center', 
-        zIndex: 50, 
-        display: 'flex', 
-        flexWrap: 'wrap',
-        backgroundColor: 'rgba(234,238,224,0.7)', //#dfd8ab
-        padding: 12, 
-        borderRadius: 8,
-        backdropFilter: 'blur(4px)',
-        maxWidth: '20%',
-      }}>
-        {ended ? 
-          <button onClick={reset} style={{ background: '#a8e6cf'}}>Start New Round</button> 
-          : 
-          <button onClick={reset} style={{ background: '#ffaaa7'}}>Reset to Start</button>
-        }
-        <button onClick={undo} disabled={ended} title={ended ? 'Round finished' : undefined} style={{ cursor: ended ? 'not-allowed' : 'pointer' }}>Undo Move</button>
-        <div><strong>Current:</strong> {current}</div>
-        <div><strong>Visited:</strong> {visited.size}</div>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span>Step cost:</span>
-          <input
-            type="range"
-            min={0}
-            max={5}
-            step={0.1}
-            value={stepCost}
-            onChange={(e) => setStepCost(parseFloat(e.target.value))}
-          />
-          <span style={{ minWidth: 36, textAlign: 'right' }}>{stepCost.toFixed(1)}</span>
-        </label>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span>Stochasticity:</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={Math.round(stochasticity * 100)}
-            onChange={(e) => setStochasticity(Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100)))}
-          />
-          <span style={{ minWidth: 36, textAlign: 'right' }}>{Math.round(stochasticity * 100)}%</span>
-        </label>
-        <div>
+    <div className="agent-play-root">
+      <div className="agent-controls-panel">
+        <div className="agent-controls-row">
+          {ended ? 
+            <button onClick={reset} className="agent-control-btn agent-control-btn--success">Try Again</button> 
+            : 
+            <button onClick={reset} className="agent-control-btn agent-control-btn--danger">Reset</button>
+          }
+          <button
+            onClick={undo}
+            disabled={ended}
+            title={ended ? 'Round finished' : undefined}
+            className="agent-control-btn"
+          >
+            Undo Move
+          </button>
+        </div>
+        <div className="agent-controls-row">
+          <div><strong>Current:</strong> {current}</div>
+          <div><strong>Visited:</strong> {visited.size}</div>
+        </div>
+        <div className="agent-controls-column">
+          <label className="agent-range-label">
+            <span>Step cost:</span>
+            <input
+              type="range"
+              min={0}
+              max={5}
+              step={0.1}
+              value={stepCost}
+              onChange={(e) => setStepCost(parseFloat(e.target.value))}
+            />
+            <span className="agent-range-value">{stepCost.toFixed(1)}</span>
+          </label>
+          <label className="agent-range-label">
+            <span>Stochasticity:</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(stochasticity * 100)}
+              onChange={(e) => setStochasticity(Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100)))}
+            />
+            <span className="agent-range-value">{Math.round(stochasticity * 100)}%</span>
+          </label>
+        </div>
+        <div className="agent-checkbox-row">
           <label>
-            <input type="checkbox" 
-              checked={easyMode} 
+            <input
+              type="checkbox"
+              checked={easyMode}
               onChange={(e) => setEasyMode(e.target.checked)}
-              style={{ marginRight: 4 }}
+              className="agent-checkbox-input"
             />
             Easy Mode
           </label>
         </div>
       </div>
 
-      <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} style={{ borderRadius: 8, background: '#f8f9fa' }}>
+      <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} className="agent-play-field">
         {/* Edges from current to neighbors (highlighted) */}
         <g stroke="#0d6efd" strokeWidth={0.08} strokeOpacity={0.7}>
           {neighbors.map((n) => {
@@ -338,8 +339,9 @@ export const AgentPlayView: React.FC<Props> = ({
                 : '#e9ecef';
             const opacity = isCurrent ? 1 : isNeighbor ? 0.5 : 1; // neighbors less opacity
             const r = 0.25;
+            const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
             return (
-              <g key={state} style={{ cursor: isNeighbor && !ended ? 'pointer' : 'default' }} onClick={() => isNeighbor && !ended && moveTo(state)}>
+              <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
                 <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
               </g>
             );
@@ -349,7 +351,7 @@ export const AgentPlayView: React.FC<Props> = ({
 
 
       {/* Stats */}
-      <div style={{ position: 'absolute', top:4, left: 4, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', fontSize: 14, zIndex: 50, color: '#333' }}>
+      <div className="agent-stats">
         {(() => {
           const moves = Math.max(0, path.length - 1);
           const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
@@ -365,12 +367,11 @@ export const AgentPlayView: React.FC<Props> = ({
         <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
         <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
         {ended && (
-          <div style={{ color: '#0d6efd' }}>
+          <div className="agent-stats__completed">
             Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
           </div>
         )}
-        <></>
-        <div style={{ fontSize: 12, color: '#6c757d' }}>
+        <div className="agent-stats__hint">
           Hint: Click neighboring nodes or use the arrow keys to move.
         </div>
       </div>

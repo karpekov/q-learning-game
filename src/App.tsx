@@ -5,6 +5,7 @@ import {Play, Pause, ChevronFirst, ChevronLast, RefreshCcw, SkipBack, SkipForwar
 import GraphViewer from './components/GraphViewer';
 import AgentPlayView from './components/AgentPlayView';
 import ModePager from './components/ModePager';
+import RewardTrendChart from './components/RewardTrendChart';
 
 const speedOptions = ["Slow", "Medium", "Fast", "Very Fast"] as const;
 const speedFrames = [800, 400, 200, 100]; // ms per step
@@ -135,6 +136,14 @@ function App() {
     return seq;
   }, [currentEpisode, stepIdx]);
 
+  const rewardTrend = useMemo(() => {
+    if (mode !== 'playback' || !expData?.episodes?.length) return [] as { index: number; value: number }[];
+    return expData.episodes.map((episode, idx) => ({
+      index: idx,
+      value: typeof episode.total_reward === 'number' ? episode.total_reward : 0,
+    }));
+  }, [mode, expData]);
+
   // Pager helpers for edge arrows
   const pages = ['play', 'playback'] as const;
   const pageIndex = mode === 'play' ? 0 : 1;
@@ -144,133 +153,125 @@ function App() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 16, minWidth: '100vw', minHeight: '100vh', boxSizing: 'border-box', maxWidth:'100vw' }}>
-      <h2 style={{ margin: 0, fontFamily: 'var(--font-space-grotesk)', fontWeight: 700, fontSize: '2.0em' }}>Q-Learning Visualizer</h2>
+    <div
+      className="app-shell"
+      id='container'
+    >
+      <section className="snap-section">
+        <h2 className="app-title">Q-Learning Visualizer</h2>
 
-      {/* Controls: graph + experiment selection */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <ModePager mode={mode === 'play' ? 'play' : 'playback'} onChange={(m) => {setMode(m); setPlaying(false);}} />
+        {/* Controls: graph + experiment selection */}
+        <div className="app-controls">
+          <ModePager mode={mode === 'play' ? 'play' : 'playback'} onChange={(m) => {setMode(m); setPlaying(false);}} />
 
-        <label>
-          Graph:&nbsp;
-          <select value={graphType} onChange={(e) => setGraphType(e.target.value)}>
-            {graphs.map((g) => (
-              <option key={g.key} value={g.key}>{g.key}</option>
-            ))}
-          </select>
-        </label>
+          <label>
+            Graph:&nbsp;
+            <select value={graphType} onChange={(e) => setGraphType(e.target.value)}>
+              {graphs.map((g) => (
+                <option key={g.key} value={g.key}>{g.key}</option>
+              ))}
+            </select>
+          </label>
 
-        {mode === 'playback' && (
-          <>
-            <label>
-              Experiment:&nbsp;
-              <select value={expId} onChange={(e) => setExpId(e.target.value)} style={{ minWidth: 150 }}>
-                {expList?.items.map((it) => (
-                  <option key={it.id} value={it.id}>{it.name}</option>
-                ))}
-              </select>
-            </label>
+          {mode === 'playback' && (
+            <>
+              <label>
+                Experiment:&nbsp;
+                <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
+                  {expList?.items.map((it) => (
+                    <option key={it.id} value={it.id}>{it.name}</option>
+                  ))}
+                </select>
+              </label>
 
-            <button onClick={() => { setStepIdx(0); setPlaying(false); }} title='Restart'><RefreshCcw /></button>
-            <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><SkipBack /></button>
-            <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst /></button>
-            <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause /> : <Play />}</button>
-            <button onClick={() => setStepIdx((s) => s + 1)} title="Next step"><ChevronLast /></button>
-            <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><SkipForward /></button>
+              <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); }} title='Restart'><RefreshCcw /></button>
+              <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><SkipBack /></button>
+              <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst /></button>
+              <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause /> : <Play />}</button>
+              <button onClick={() => setStepIdx((s) => s + 1)} title="Next step"><ChevronLast /></button>
+              <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><SkipForward /></button>
 
 
-            <label>
-              Speed:&nbsp;
-              <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
-                {speedOptions.map((name, i) => (
-                  <option key={name} value={i}>{name}</option>
-                ))}
-              </select>
-            </label>
-          </>
-        )}
-      </div>
-
-      {/* Viewers with smooth transition */}
-      {graphDef && (
-        <div style={{ position: 'relative', width: '100%', height: viewerHeight, overflow: 'hidden' }}>
-          {/* Edge pagination buttons */}
-          <button
-            aria-label="Previous mode"
-            onClick={() => goPage(pageIndex - 1)}
-            disabled={pageIndex <= 0}
-            style={{
-              position: 'absolute', left: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
-              width: 44, height: 44,
-              alignItems: 'center', justifyContent: 'center',
-              backgroundColor: 'transparent',
-              color: pageIndex > 0 ? 'black' : 'gray',
-              backdropFilter: 'blur(2px)', 
-              cursor: pageIndex > 0 ? 'pointer' : 'not-allowed'
-            }}
-          >
-            <ChevronLeft />
-          </button>
-          <button
-            aria-label="Next mode"
-            onClick={() => { goPage(pageIndex + 1); setPlaying(false); }}
-            disabled={pageIndex >= pages.length - 1}
-            style={{
-              position: 'absolute', right: 8, top: '50%', transform: 'translateY(-100%)', zIndex: 5,
-              width: 44, height: 44,
-              alignItems: 'center', justifyContent: 'center',
-              backgroundColor: 'transparent',
-              color: pageIndex < pages.length - 1 ? 'black' : 'gray',
-              backdropFilter: 'blur(2px)', cursor: pageIndex < pages.length - 1 ? 'pointer' : 'not-allowed'
-            }}
-          >
-            <ChevronRight />
-          </button>
-          <div
-            style={{
-              position: 'absolute', inset: 0,
-              opacity: mode === 'playback' ? 1 : 0,
-              transform: `translateX(${mode === 'playback' ? '0%' : '100%'})`,
-              transition: 'opacity 250ms ease, transform 250ms ease',
-              pointerEvents: mode === 'playback' ? 'auto' : 'none',
-            }}
-          >
-            <GraphViewer
-              coords={graphDef.coords}
-              adjacency={graphDef.adjacency}
-              terminalRewards={graphDef.terminal_rewards}
-              currentState={currentState}
-              path={pathStates}
-              width={viewerWidth}
-              height={viewerHeight}
-              playbackStats={mode === 'playback' ? {
-                episodeIndex: episodeIdx,
-                episodeCount: expData?.episodes?.length ?? 0,
-                stepIndex: stepIdx,
-                stepCount: currentEpisode?.steps?.length ?? 0,
-                totalReward: currentEpisode?.total_reward ?? null,
-              } : undefined}
-              policy={mode === 'playback' ? ((expData?.policy as Record<string, string | number> | undefined) ?? null) : null}
-            />
-          </div>
-          <div
-            style={{
-              position: 'absolute', inset: 0,
-              opacity: mode === 'play' ? 1 : 0,
-              transform: `translateX(${mode === 'play' ? '0%' : '-100%'})`,
-              transition: 'opacity 250ms ease, transform 250ms ease',
-              pointerEvents: mode === 'play' ? 'auto' : 'none',
-            }}
-          >
-            <AgentPlayView
-              coords={graphDef.coords}
-              adjacency={graphDef.adjacency}
-              terminalRewards={graphDef.terminal_rewards}
-              width={viewerWidth}
-              height={viewerHeight}
-            />
-          </div>  
+              <label>
+                Speed:&nbsp;
+                <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
+                  {speedOptions.map((name, i) => (
+                    <option key={name} value={i}>{name}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
+
+        {/* Viewers with smooth transition */}
+        {graphDef && (
+          <div className="viewer-container" style={{ height: viewerHeight }}>
+            {/* Edge pagination buttons */}
+            <button
+              aria-label="Previous mode"
+              onClick={() => goPage(pageIndex - 1)}
+              disabled={pageIndex <= 0}
+              className="mode-switch-button mode-switch-button--left"
+            >
+              <ChevronLeft />
+            </button>
+            <button
+              aria-label="Next mode"
+              onClick={() => { goPage(pageIndex + 1); setPlaying(false); }}
+              disabled={pageIndex >= pages.length - 1}
+              className="mode-switch-button mode-switch-button--right"
+            >
+              <ChevronRight />
+            </button>
+            <div
+              className={`viewer-pane viewer-pane--playback ${mode === 'playback' ? 'is-active' : ''}`}
+            >
+              <GraphViewer
+                coords={graphDef.coords}
+                adjacency={graphDef.adjacency}
+                terminalRewards={graphDef.terminal_rewards}
+                currentState={currentState}
+                path={pathStates}
+                width={viewerWidth}
+                height={viewerHeight}
+                playbackStats={mode === 'playback' ? {
+                  episodeIndex: episodeIdx,
+                  episodeCount: expData?.episodes?.length ?? 0,
+                  stepIndex: stepIdx,
+                  stepCount: currentEpisode?.steps?.length ?? 0,
+                  totalReward: currentEpisode?.total_reward ?? null,
+                } : undefined}
+                policy={mode === 'playback' ? ((expData?.policy as Record<string, string | number> | undefined) ?? null) : null}
+                qValues={mode === 'playback' ? (expData?.q_values ?? null) : null}
+                hyperParams={mode === 'playback' ? {
+                  alpha: typeof expData?.agent?.alpha === 'number' ? expData.agent.alpha : expData?.episodes?.[episodeIdx]?.alpha,
+                  epsilon: typeof expData?.agent?.epsilon === 'number' ? expData.agent.epsilon : expData?.episodes?.[episodeIdx]?.epsilon,
+                  gamma: typeof expData?.agent?.gamma === 'number' ? expData.agent.gamma : undefined,
+                  stepCost: typeof expData?.environment?.step_cost === 'number' ? expData.environment.step_cost : undefined,
+                  stochasticity: typeof expData?.environment?.stochasticity === 'number' ? expData.environment.stochasticity : undefined,
+                } : null}
+              />
+            </div>
+            <div
+              className={`viewer-pane viewer-pane--play ${mode === 'play' ? 'is-active' : ''}`}
+            >
+              <AgentPlayView
+                coords={graphDef.coords}
+                adjacency={graphDef.adjacency}
+                terminalRewards={graphDef.terminal_rewards}
+                width={viewerWidth}
+                height={viewerHeight}
+              />
+            </div>
+          </div>
+        )}
+      </section>
+
+      {mode === 'playback' && rewardTrend.length > 0 && (
+        <section className="snap-section snap-section--centered">
+          <RewardTrendChart points={rewardTrend} width={viewerWidth} />
+        </section>
       )}
     </div>
   );

@@ -60,4 +60,3 @@ export interface ExperimentDataSummary {
   episodes?: Episode[];
   meta?: { graph_type: string; exp_id: string };
 }
-
