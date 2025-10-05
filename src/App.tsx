@@ -174,7 +174,7 @@ function App() {
           </label>
 
           {mode === 'playback' && (
-            <>
+            <div className="playback-controls">
               <label>
                 Experiment:&nbsp;
                 <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
@@ -183,14 +183,15 @@ function App() {
                   ))}
                 </select>
               </label>
-
-              <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); }} title='Restart'><RefreshCcw /></button>
-              <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><SkipBack /></button>
-              <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst /></button>
-              <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause /> : <Play />}</button>
-              <button onClick={() => setStepIdx((s) => s + 1)} title="Next step"><ChevronLast /></button>
-              <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><SkipForward /></button>
-
+              
+              <div className="playback-group">
+                <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); }} title='Restart'><RefreshCcw  className='playback-icon'/></button>
+                <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><SkipBack className='playback-icon' /></button>
+                <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst className='playback-icon' /></button>
+                <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause className='playback-icon' /> : <Play className='playback-icon'/>}</button>
+                <button onClick={() => setStepIdx((s) => s + 1)} title="Next step"><ChevronLast className='playback-icon' /></button>
+                <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><SkipForward className='playback-icon' /></button>
+              </div>
 
               <label>
                 Speed:&nbsp;
@@ -200,7 +201,7 @@ function App() {
                   ))}
                 </select>
               </label>
-            </>
+            </div>
           )}
         </div>
 

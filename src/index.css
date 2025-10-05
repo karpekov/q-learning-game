@@ -52,7 +52,6 @@ button:hover {
   opacity: 80%;
   transition: opacity 0.5s;
 }
-button:focus
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -166,4 +165,25 @@ button:focus
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0%);
+}
+
+.playback-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.playback-controls label {
+  display: flex;
+  align-items: center;
+}
+.playback-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.playback-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }

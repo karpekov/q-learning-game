@@ -53,7 +53,7 @@
 .graph-info-trigger {
   position: absolute;
   bottom: 8px;
-  right: 8px;
+  left: 21%;
   z-index: 50;
   display: inline-flex;
   cursor: pointer;
@@ -70,7 +70,7 @@
 .graph-info-bubble {
   position: absolute;
   bottom: 100%;
-  right: 0;
+  left: 0;
   margin-bottom: 8px;
   pointer-events: none;
   transform: translateY(6px) scale(0.92);
