@@ -8,7 +8,9 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipProps,
 } from 'recharts';
+import './RewardTrendChart.css';
 
 type Point = {
   index: number;
@@ -19,6 +21,22 @@ type Props = {
   points: Point[];
   width: number;
   height?: number;
+};
+
+const RewardTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+  const rewardEntry = payload.find((entry) => entry.dataKey === 'reward') ?? payload[payload.length - 1];
+  const rawValue = typeof rewardEntry.value === 'number' ? rewardEntry.value : Number(rewardEntry.value);
+  const formatted = Number.isFinite(rawValue) ? rawValue.toFixed(2) : '-';
+
+  return (
+    <div className="reward-tooltip">
+      <div className="reward-tooltip__title">Episode {label}</div>
+      <div className="reward-tooltip__value">Reward : {formatted}</div>
+    </div>
+  );
 };
 
 const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
@@ -55,14 +73,14 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
   const areaTop = colorForReward(domainMax);
 
   return (
-    <div style={{ width, maxWidth: '100%', height: '50vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <strong style={{ fontFamily: 'var(--font-space-grotesk)', fontWeight: 700, fontSize: '1.6em' }}>Reward Trend</strong>
-        <span style={{ fontSize: 12, color: '#6c757d' }}>
+    <div className="reward-chart" style={{ width }}>
+      <div className="reward-chart__header">
+        <strong className="reward-chart__title">Reward Trend</strong>
+        <span className="reward-chart__meta">
           Episodes: {data.length} · Range: {min.toFixed(2)} - {max.toFixed(2)}
         </span>
       </div>
-      <div style={{ width: '100%', height: '100%' }}>
+      <div className="reward-chart__body">
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 12, right: 16, left: 0, bottom: 12 }}>
             <defs>
@@ -91,12 +109,7 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               fontSize={12}
               domain={[domainMin, domainMax]}
             />
-            <Tooltip
-              contentStyle={{ borderRadius: 8, background: 'rgba(234,238,224,0.7)', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', backdropFilter: 'blur(8px)', border: 'none' }}
-              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-              formatter={(value: number) => [`${value.toFixed(2)}`, 'Reward']}
-              labelFormatter={(label) => `Episode ${label}`}
-            />
+            <Tooltip content={<RewardTooltip />} />
             <Area type="monotone" dataKey="reward" stroke="none" fill="url(#rewardArea)" />
             <Line
               type="monotone"

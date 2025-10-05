@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Info } from 'lucide-react';
 import type { Coord } from '../types';
 import './AgentPlayView.css';
 
@@ -53,6 +54,7 @@ export const AgentPlayView: React.FC<Props> = ({
   const [easyMode, setEasyMode] = useState<boolean>(false);
   const [stepCost, setStepCost] = useState<number>(0); // cost per move
   const [stochasticity, setStochasticity] = useState<number>(0); // 0..1 chance to deviate
+  const [showInfoTip, setShowInfoTip] = useState<boolean>(false);
 
   const latestReward = episodes.length ? episodes[episodes.length - 1] : null;
   const bestReward = episodes.length ? Math.max(...episodes) : null;
@@ -68,6 +70,19 @@ export const AgentPlayView: React.FC<Props> = ({
     neighbors.forEach((n) => set.add(n));
     return set;
   }, [visited, current, neighbors, easyMode, coords]);
+
+  const pathSegments = useMemo(() => {
+    const segments: { key: string; from: Coord; to: Coord }[] = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const fromState = path[i];
+      const toState = path[i + 1];
+      const from = coords[fromState];
+      const to = coords[toState];
+      if (!from || !to) continue;
+      segments.push({ key: `${fromState}->${toState}-${i}`, from, to });
+    }
+    return segments;
+  }, [path, coords]);
 
   function pickStochasticNeighbor(intended: string): string {
     // With probability (1 - p) go intended; with p/2 go left; with p/2 go right
@@ -268,6 +283,16 @@ export const AgentPlayView: React.FC<Props> = ({
           </label>
         </div>
         <div className="agent-checkbox-row">
+          <div
+            className="agent-info-trigger"
+            onMouseEnter={() => setShowInfoTip(true)}
+            onMouseLeave={() => setShowInfoTip(false)}
+          >
+            <Info size={12} />
+            <div className={`agent-info-tip ${showInfoTip ? 'is-visible' : ''}`}>
+              Spoilers! Enabling Easy Mode will reveal the whole world.
+            </div>
+          </div>
           <label>
             <input
               type="checkbox"
@@ -275,12 +300,27 @@ export const AgentPlayView: React.FC<Props> = ({
               onChange={(e) => setEasyMode(e.target.checked)}
               className="agent-checkbox-input"
             />
-            Easy Mode
+            Easy Mode 
           </label>
         </div>
       </div>
 
       <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} className="agent-play-field">
+        <defs>
+          <marker
+            id="agent-path-arrow"
+            viewBox="0 0 4 4"
+            refX="3"
+            refY="2"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M0,0 L4,2 L0,4 z" fill="#20c997" />
+          </marker>
+        </defs>
+
         {/* Edges from current to neighbors (highlighted) */}
         <g stroke="#0d6efd" strokeWidth={0.08} strokeOpacity={0.7}>
           {neighbors.map((n) => {
@@ -309,14 +349,19 @@ export const AgentPlayView: React.FC<Props> = ({
         </g>
 
         {/* Path line for movement history */}
-        {path.length > 1 && (
-          <polyline
-            points={path.map((s) => coords[s]).filter(Boolean).map(([x, y]) => `${x},${y}`).join(' ')}
-            fill="none"
-            stroke="#20c997"
-            strokeWidth={0.12}
-            strokeOpacity={0.7}
-          />
+        {pathSegments.length > 0 && (
+          <g stroke="#20c997" strokeWidth={0.12} strokeOpacity={0.7}>
+            {pathSegments.map(({ key, from, to }) => (
+              <line
+                key={`path-${key}`}
+                x1={from[0]}
+                y1={from[1]}
+                x2={to[0]}
+                y2={to[1]}
+                markerEnd="url(#agent-path-arrow)"
+              />
+            ))}
+          </g>
         )}
 
         {/* Nodes */}
@@ -359,21 +404,21 @@ export const AgentPlayView: React.FC<Props> = ({
           return (
             <>
               <div><strong>Moves:</strong> {moves}</div>
-              <div><strong>Current:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
+              <div><strong>Current Score:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
             </>
           );
         })()}
         <div><strong>Episodes:</strong> {episodes.length}</div>
         <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
         <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
+        <div className="agent-stats__hint">
+          Hint: Click neighboring nodes or use the arrow keys to move.
+        </div>
         {ended && (
           <div className="agent-stats__completed">
             Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
           </div>
         )}
-        <div className="agent-stats__hint">
-          Hint: Click neighboring nodes or use the arrow keys to move.
-        </div>
       </div>
     </div>
   );

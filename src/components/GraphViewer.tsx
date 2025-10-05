@@ -95,9 +95,18 @@ export const GraphViewer: React.FC<Props> = ({
   const vbW = (maxX - minX) + pad * 2;
   const vbH = (maxY - minY) + pad * 2;
 
-  const pathPoints = path
-    .filter((s) => coords[s])
-    .map((s) => coords[s]);
+  const pathSegments = React.useMemo(() => {
+    const segments: { key: string; from: Coord; to: Coord }[] = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const fromState = path[i];
+      const toState = path[i + 1];
+      const from = coords[fromState];
+      const to = coords[toState];
+      if (!from || !to) continue;
+      segments.push({ key: `${fromState}->${toState}-${i}`, from, to });
+    }
+    return segments;
+  }, [path, coords]);
 
   const policyArrows = React.useMemo(() => {
     if (!policy) return [] as {
@@ -411,6 +420,18 @@ export const GraphViewer: React.FC<Props> = ({
           >
             <path d="M0,0 L4,2 L0,4 z" fill="#f08c00" />
           </marker>
+          <marker
+            id="path-arrow"
+            viewBox="0 0 4 4"
+            refX="3"
+            refY="2"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto"
+            markerUnits="strokeWidth"
+          >
+            <path d="M0,0 L4,2 L0,4 z" fill="#0d6efd" />
+          </marker>
         </defs>
 
         {/* Edges */}
@@ -427,14 +448,19 @@ export const GraphViewer: React.FC<Props> = ({
         </g>
 
         {/* Path */}
-        {pathPoints.length > 1 && (
-          <polyline
-            points={pathPoints.map(([x, y]) => `${x},${y}`).join(' ')}
-            fill="none"
-            stroke="#0d6efd"
-            strokeWidth={0.12}
-            strokeOpacity={0.9}
-          />
+        {pathSegments.length > 0 && (
+          <g stroke="#0d6efd" strokeWidth={0.12} strokeOpacity={0.9}>
+            {pathSegments.map(({ key, from, to }) => (
+              <line
+                key={`path-${key}`}
+                x1={from[0]}
+                y1={from[1]}
+                x2={to[0]}
+                y2={to[1]}
+                markerEnd="url(#path-arrow)"
+              />
+            ))}
+          </g>
         )}
 
         {/* Policy arrows */}

@@ -101,6 +101,7 @@ button:focus
   font-family: var(--font-space-grotesk);
   font-weight: 700;
   font-size: 2em;
+  margin-bottom: 0.5em;
 }
 
 .app-controls {
