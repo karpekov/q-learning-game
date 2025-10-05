@@ -38,7 +38,7 @@ function App() {
   }, []);
   
   const horizontalPadding = 32; // matches page padding
-  const reservedTop = 160; // header + controls approx
+  const reservedTop = 140; // header + controls approx
   const viewerWidth = Math.max(320, vw - horizontalPadding);
   const viewerHeight = Math.max(300, vh - reservedTop);
 

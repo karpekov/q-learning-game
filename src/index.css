@@ -68,6 +68,9 @@ button:hover {
 
 @theme {
   --font-space-grotesk: 'Space Grotesk', sans-serif;
+
+  --color-dark-green: #34430D;
+  --color-light-green: #EAEEE0;
 }
 
 .app-shell {
@@ -101,6 +104,9 @@ button:hover {
   font-weight: 700;
   font-size: 2em;
   margin-bottom: 0.5em;
+  background: linear-gradient(to right, var(--color-dark-green), var(--color-light-green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .app-controls {
