@@ -44,7 +44,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #e7e7db;
+  background-color: rgba(234, 238, 224);
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -118,6 +118,8 @@ button:hover {
   position: relative;
   width: 100%;
   overflow: hidden;
+  border-radius: 8px;
+  margin-top: 1rem;
 }
 
 .mode-switch-button {
@@ -136,6 +138,7 @@ button:hover {
   padding: 0;
   color: black;
   cursor: pointer;
+  border-radius: 999px;
 }
 .mode-switch-button:disabled {
   color: gray;

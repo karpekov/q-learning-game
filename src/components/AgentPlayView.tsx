@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import type { Coord } from '../types';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import './AgentPlayView.css';
 
 type Props = {
@@ -236,190 +237,209 @@ export const AgentPlayView: React.FC<Props> = ({
 
   return (
     <div className="agent-play-root">
-      <div className="agent-controls-panel">
-        <div className="agent-controls-row">
-          {ended ? 
-            <button onClick={reset} className="agent-control-btn agent-control-btn--success">Try Again</button> 
-            : 
-            <button onClick={reset} className="agent-control-btn agent-control-btn--danger">Reset</button>
-          }
-          <button
-            onClick={undo}
-            disabled={ended}
-            title={ended ? 'Round finished' : undefined}
-            className="agent-control-btn"
-          >
-            Undo Move
-          </button>
-        </div>
-        <div className="agent-controls-row">
-          <div><strong>Current:</strong> {current}</div>
-          <div><strong>Visited:</strong> {visited.size}</div>
-        </div>
-        <div className="agent-controls-column">
-          <label className="agent-range-label">
-            <span>Step cost:</span>
-            <input
-              type="range"
-              min={0}
-              max={5}
-              step={0.1}
-              value={stepCost}
-              onChange={(e) => setStepCost(parseFloat(e.target.value))}
-            />
-            <span className="agent-range-value">{stepCost.toFixed(1)}</span>
-          </label>
-          <label className="agent-range-label">
-            <span>Stochasticity:</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={Math.round(stochasticity * 100)}
-              onChange={(e) => setStochasticity(Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100)))}
-            />
-            <span className="agent-range-value">{Math.round(stochasticity * 100)}%</span>
-          </label>
-        </div>
-        <div className="agent-checkbox-row">
-          <div
-            className="agent-info-trigger"
-            onMouseEnter={() => setShowInfoTip(true)}
-            onMouseLeave={() => setShowInfoTip(false)}
-          >
-            <Info size={12} />
-            <div className={`agent-info-tip ${showInfoTip ? 'is-visible' : ''}`}>
-              Spoilers! Enabling Easy Mode will reveal the whole world.
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.5}
+        maxScale={3}
+        wheel={{ step: 0.1 }}
+        doubleClick={{ disabled: true }}
+        panning={{ velocity: 0.2, limitToBounds: false }}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            <div className="agent-controls-panel">
+              <div className="agent-controls-row">
+                {ended ? (
+                  <button onClick={reset} className="agent-control-btn agent-control-btn--success">Try Again</button>
+                ) : (
+                  <button onClick={reset} className="agent-control-btn agent-control-btn--danger">Reset</button>
+                )}
+                <button
+                  onClick={undo}
+                  disabled={ended}
+                  title={ended ? 'Round finished' : undefined}
+                  className="agent-control-btn"
+                >
+                  Undo Move
+                </button>
+              </div>
+              <div className="agent-controls-row">
+                <div><strong>Current:</strong> {current}</div>
+                <div><strong>Visited:</strong> {visited.size}</div>
+              </div>
+              <div className="agent-controls-column">
+                <label className="agent-range-label">
+                  <span>Step cost:</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    value={stepCost}
+                    onChange={(e) => setStepCost(parseFloat(e.target.value))}
+                  />
+                  <span className="agent-range-value">{stepCost.toFixed(1)}</span>
+                </label>
+                <label className="agent-range-label">
+                  <span>Stochasticity:</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Math.round(stochasticity * 100)}
+                    onChange={(e) => setStochasticity(Math.max(0, Math.min(1, parseInt(e.target.value, 10) / 100)))}
+                  />
+                  <span className="agent-range-value">{Math.round(stochasticity * 100)}%</span>
+                </label>
+              </div>
+              <div className="agent-checkbox-row">
+                <div
+                  className="agent-info-trigger"
+                  onMouseEnter={() => setShowInfoTip(true)}
+                  onMouseLeave={() => setShowInfoTip(false)}
+                >
+                  <Info size={14} />
+                  <div className={`agent-info-tip ${showInfoTip ? 'is-visible' : ''}`}>
+                    Spoilers! Enabling Easy Mode will reveal the whole world.
+                  </div>
+                </div>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={easyMode}
+                    onChange={(e) => setEasyMode(e.target.checked)}
+                    className="agent-checkbox-input"
+                  />
+                  Easy Mode 
+                </label>
+              </div>
+              <div className="agent-zoom-controls">
+                <button onClick={() => zoomOut()} className="agent-control-btn" title="Zoom out">-</button>
+                <button onClick={() => resetTransform()} className="agent-control-btn" title="Reset view">Reset View</button>
+                <button onClick={() => zoomIn()} className="agent-control-btn" title="Zoom in">+</button>
+              </div>
             </div>
-          </div>
-          <label>
-            <input
-              type="checkbox"
-              checked={easyMode}
-              onChange={(e) => setEasyMode(e.target.checked)}
-              className="agent-checkbox-input"
-            />
-            Easy Mode 
-          </label>
-        </div>
-      </div>
 
-      <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} className="agent-play-field">
-        <defs>
-          <marker
-            id="agent-path-arrow"
-            viewBox="0 0 4 4"
-            refX="3"
-            refY="2"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto"
-            markerUnits="strokeWidth"
-          >
-            <path d="M0,0 L4,2 L0,4 z" fill="#20c997" />
-          </marker>
-        </defs>
+            <TransformComponent wrapperClass="agent-play-wrapper" contentClass="agent-play-content">
+              <svg width={width} height={height} viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`} className="agent-play-field">
+                <defs>
+                  <marker
+                    id="agent-path-arrow"
+                    viewBox="0 0 4 4"
+                    refX="3"
+                    refY="2"
+                    markerWidth="4"
+                    markerHeight="4"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M0,0 L4,2 L0,4 z" fill="#20c997" />
+                  </marker>
+                </defs>
 
-        {/* Edges from current to neighbors (highlighted) */}
-        <g stroke="#0d6efd" strokeWidth={0.08} strokeOpacity={0.7}>
-          {neighbors.map((n) => {
-            const a = coords[current];
-            const b = coords[n];
-            if (!a || !b) return null;
-            return <line key={`cur-${current}->${n}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />;
-          })}
-        </g>
+                {/* Edges from current to neighbors (highlighted) */}
+                <g stroke="#0d6efd" strokeWidth={0.08} strokeOpacity={0.7}>
+                  {neighbors.map((n) => {
+                    const a = coords[current];
+                    const b = coords[n];
+                    if (!a || !b) return null;
+                    return <line key={`cur-${current}->${n}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />;
+                  })}
+                </g>
 
-        {/* Faint edges among visible visited nodes (optional context) */}
-        <g stroke="#bbb" strokeWidth={0.05} strokeOpacity={0.25}>
-          {Array.from(visibleNodes).map((from) => {
-            const fromC = coords[from];
-            if (!fromC) return null;
-            return (adjacency[from] || [])
-              .filter((to) => visibleNodes.has(to))
-              .map((to) => {
-                const toC = coords[to];
-                if (!toC) return null;
+                {/* Faint edges among visible visited nodes (optional context) */}
+                <g stroke="#bbb" strokeWidth={0.05} strokeOpacity={0.25}>
+                  {Array.from(visibleNodes).map((from) => {
+                    const fromC = coords[from];
+                    if (!fromC) return null;
+                    return (adjacency[from] || [])
+                      .filter((to) => visibleNodes.has(to))
+                      .map((to) => {
+                        const toC = coords[to];
+                        if (!toC) return null;
+                        return (
+                          <line key={`${from}->${to}`} x1={fromC[0]} y1={fromC[1]} x2={toC[0]} y2={toC[1]} />
+                        );
+                      });
+                  })}
+                </g>
+
+                {/* Path line for movement history */}
+                {pathSegments.length > 0 && (
+                  <g stroke="#20c997" strokeWidth={0.12} strokeOpacity={0.7}>
+                    {pathSegments.map(({ key, from, to }) => (
+                      <line
+                        key={`path-${key}`}
+                        x1={from[0]}
+                        y1={from[1]}
+                        x2={to[0]}
+                        y2={to[1]}
+                        markerEnd="url(#agent-path-arrow)"
+                      />
+                    ))}
+                  </g>
+                )}
+
+                {/* Nodes */}
+                <g>
+                  {Array.from(visibleNodes).map((state) => {
+                    const c = coords[state];
+                    if (!c) return null;
+                    const [x, y] = c;
+                    const isCurrent = state === current;
+                    const isNeighbor = neighbors.includes(state);
+                    const isTerminal = state in terminalRewards;
+                    const hasVisited = visited.has(state);
+                    const showTerminalColor = isTerminal && hasVisited;
+                    const fill = isCurrent
+                      ? showTerminalColor
+                        ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
+                        : '#fdf0ac'
+                      : showTerminalColor
+                        ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
+                        : '#e9ecef';
+                    const opacity = isCurrent ? 1 : isNeighbor ? 0.5 : 1;
+                    const r = 0.25;
+                    const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
+                    return (
+                      <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
+                        <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
+                      </g>
+                    );
+                  })}
+                </g>
+              </svg>
+            </TransformComponent>
+
+            {/* Stats */}
+            <div className="agent-stats">
+              {(() => {
+                const moves = Math.max(0, path.length - 1);
+                const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
+                const currentScore = -moves * stepCost + (ended ? term : 0);
                 return (
-                  <line key={`${from}->${to}`} x1={fromC[0]} y1={fromC[1]} x2={toC[0]} y2={toC[1]} />
+                  <>
+                    <div><strong>Moves:</strong> {moves}</div>
+                    <div><strong>Current Score:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
+                  </>
                 );
-              });
-          })}
-        </g>
-
-        {/* Path line for movement history */}
-        {pathSegments.length > 0 && (
-          <g stroke="#20c997" strokeWidth={0.12} strokeOpacity={0.7}>
-            {pathSegments.map(({ key, from, to }) => (
-              <line
-                key={`path-${key}`}
-                x1={from[0]}
-                y1={from[1]}
-                x2={to[0]}
-                y2={to[1]}
-                markerEnd="url(#agent-path-arrow)"
-              />
-            ))}
-          </g>
+              })()}
+              <div><strong>Episodes:</strong> {episodes.length}</div>
+              <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
+              <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
+              <div className="agent-stats__hint">
+                Hint: Click neighboring nodes or use the arrow keys to move.
+              </div>
+              {ended && (
+                <div className="agent-stats__completed">
+                  Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
+                </div>
+              )}
+            </div>
+          </>
         )}
-
-        {/* Nodes */}
-        <g>
-          {Array.from(visibleNodes).map((state) => {
-            const c = coords[state];
-            if (!c) return null;
-            const [x, y] = c;
-            const isCurrent = state === current;
-            const isNeighbor = neighbors.includes(state);
-            const isTerminal = state in terminalRewards;
-            const hasVisited = visited.has(state);
-            const showTerminalColor = isTerminal && hasVisited;
-            const fill = isCurrent
-              ? showTerminalColor 
-                ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7') 
-                : '#fdf0ac'
-              : showTerminalColor
-                ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
-                : '#e9ecef';
-            const opacity = isCurrent ? 1 : isNeighbor ? 0.5 : 1; // neighbors less opacity
-            const r = 0.25;
-            const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
-            return (
-              <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
-                <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
-              </g>
-            );
-          })}
-        </g>
-      </svg>
-
-
-      {/* Stats */}
-      <div className="agent-stats">
-        {(() => {
-          const moves = Math.max(0, path.length - 1);
-          const term = ended && current in terminalRewards ? terminalRewards[current] : 0;
-          const currentScore = -moves * stepCost + (ended ? term : 0);
-          return (
-            <>
-              <div><strong>Moves:</strong> {moves}</div>
-              <div><strong>Current Score:</strong> {currentScore > 0 ? `+${currentScore}` : `${currentScore}`}</div>
-            </>
-          );
-        })()}
-        <div><strong>Episodes:</strong> {episodes.length}</div>
-        <div><strong>Latest:</strong> {latestReward !== null ? (latestReward > 0 ? `+${latestReward.toFixed(2)}` : `${latestReward.toFixed(2)}`) : '-'}</div>
-        <div><strong>Best:</strong> {bestReward !== null ? (bestReward > 0 ? `+${bestReward.toFixed(2)}` : `${bestReward.toFixed(2)}`) : '-'}</div>
-        <div className="agent-stats__hint">
-          Hint: Click neighboring nodes or use the arrow keys to move.
-        </div>
-        {ended && (
-          <div className="agent-stats__completed">
-            Round finished. Terminal: {terminalRewards[current] > 0 ? `+${terminalRewards[current]}` : terminalRewards[current]}. Total with step cost applied: {episodes[episodes.length - 1] > 0 ? `+${episodes[episodes.length - 1]}` : episodes[episodes.length - 1]}
-          </div>
-        )}
-      </div>
+      </TransformWrapper>
     </div>
   );
 };

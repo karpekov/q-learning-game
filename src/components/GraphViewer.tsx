@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Coord, ExperimentDataSummary } from '../types';
 import { Info } from 'lucide-react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import './GraphViewer.css';
 
 type PlaybackStats = {
@@ -326,87 +327,99 @@ export const GraphViewer: React.FC<Props> = ({
 
   return (
     <div ref={containerRef} className="graph-viewer-root" style={{ width, height }}>
-      {playbackStats && (
-        <div
-          className="graph-stats-panel"
-        >
-          <div className="graph-stats-summary">
-            <p><strong>Alpha:</strong> {hyperParams?.alpha != null ? hyperParams.alpha.toFixed(6) : '-'}</p>
-            <p><strong>Epsilon:</strong> {hyperParams?.epsilon != null ? hyperParams.epsilon.toFixed(6) : '-'}</p>
-            <p><strong>Gamma:</strong> {hyperParams?.gamma != null ? hyperParams.gamma.toFixed(3) : '-'}</p>
-            <p><strong>Step cost:</strong> {hyperParams?.stepCost != null ? hyperParams.stepCost.toFixed(3) : '-'}</p>
-            <p><strong>Stochasticity:</strong> {hyperParams?.stochasticity != null ? `${(hyperParams.stochasticity * 100).toFixed(1)}%` : '-'}</p>
-          </div>
-          <div className="graph-stats-row">
-            <p><strong>Episode:</strong> {playbackStats.episodeIndex + 1}/{playbackStats.episodeCount}</p>
-            <p><strong>Step:</strong> {Math.min(playbackStats.stepIndex, playbackStats.stepCount)}/{playbackStats.stepCount}</p>
-            <p><strong>Reward:</strong> {playbackStats.totalReward != null ? playbackStats.totalReward.toFixed(2) : '-'}</p>
-          </div>
-          <div className="graph-stats-checks">
-            <label className="graph-stats-checkbox">
-              <input
-                type="checkbox"
-                checked={showPolicy}
-                onChange={() => setShowPolicy((v) => !v)}
-                disabled={!policy}
-              />{' '}
-              Show Final Policy
-            </label>
-            <label className="graph-stats-checkbox">
-              <input
-                type="checkbox"
-                checked={showQValues}
-                onChange={() => setShowQValues((v) => !v)}
-                disabled={!qValues}
-              />{' '}
-              Show Final Q-values
-            </label>
-          </div>
-        </div>
-      )}
-
-      {/* Info Tip */}
-      <div
-        className="graph-info-trigger"
-        onMouseEnter={() => setShowInfoTip(true)}
-        onMouseLeave={() => setShowInfoTip(false)}
-        onFocus={() => setShowInfoTip(true)}
-        onBlur={() => setShowInfoTip(false)}
-        tabIndex={0}
-        role="button"
-        aria-label="Graph viewer tips"
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.5}
+        maxScale={3}
+        wheel={{ step: 0.1 }}
+        doubleClick={{ disabled: true }}
+        panning={{ velocity: 0.2, limitToBounds: false }}
       >
-        <div className={`graph-info-bubble ${showInfoTip ? 'is-visible' : ''}`}>
-          <div
-            className="graph-info-content"
-          >
-            <div className="graph-info-title">Key</div>
-            <div className="graph-info-entry">
-              <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
-                <circle cx={15} cy={20} r={6} fill="#a8e6cf" />
-              </svg>
-              <p>Positive terminal state</p>
-            </div>
-            <div className="graph-info-entry">
-              <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
-                <circle cx={15} cy={20} r={6} fill="#ffaaa7" />
-              </svg>
-              <p>Negative terminal state</p>
-            </div>
-          </div>
-        </div>
-        <div className="graph-info-trigger__icon">
-          <Info />
-        </div>
-      </div>
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            {playbackStats && (
+              <div className="graph-stats-panel">
+                <div className="graph-stats-summary">
+                  <p><strong>Alpha:</strong> {hyperParams?.alpha != null ? hyperParams.alpha.toFixed(6) : '-'}</p>
+                  <p><strong>Epsilon:</strong> {hyperParams?.epsilon != null ? hyperParams.epsilon.toFixed(6) : '-'}</p>
+                  <p><strong>Gamma:</strong> {hyperParams?.gamma != null ? hyperParams.gamma.toFixed(3) : '-'}</p>
+                  <p><strong>Step cost:</strong> {hyperParams?.stepCost != null ? hyperParams.stepCost.toFixed(3) : '-'}</p>
+                  <p><strong>Stochasticity:</strong> {hyperParams?.stochasticity != null ? `${(hyperParams.stochasticity * 100).toFixed(1)}%` : '-'}</p>
+                </div>
+                <div className="graph-stats-row">
+                  <p><strong>Episode:</strong> {playbackStats.episodeIndex + 1}/{playbackStats.episodeCount}</p>
+                  <p><strong>Step:</strong> {Math.min(playbackStats.stepIndex, playbackStats.stepCount)}/{playbackStats.stepCount}</p>
+                  <p><strong>Reward:</strong> {playbackStats.totalReward != null ? playbackStats.totalReward.toFixed(2) : '-'}</p>
+                </div>
+                <div className="graph-stats-checks">
+                  <label className="graph-stats-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={showPolicy}
+                      onChange={() => setShowPolicy((v) => !v)}
+                      disabled={!policy}
+                    />{' '}
+                    Show Final Policy
+                  </label>
+                  <label className="graph-stats-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={showQValues}
+                      onChange={() => setShowQValues((v) => !v)}
+                      disabled={!qValues}
+                    />{' '}
+                    Show Final Q-values
+                  </label>
+                </div>
+                <div className="graph-zoom-controls">
+                  <button onClick={() => zoomOut()} className="graph-zoom-button" title="Zoom out">-</button>
+                  <button onClick={() => resetTransform()} className="graph-zoom-button" title="Reset view">Reset View</button>
+                  <button onClick={() => zoomIn()} className="graph-zoom-button" title="Zoom in">+</button>
+                </div>
+              </div>
+            )}
 
-      {/* SVG elements stacked in order of rendering (back to front) */}
-      <svg
-        width={width}
-        height={height}
-        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-        className="graph-viewer-canvas"
-      >
+            {/* Info Tip */}
+            <div
+              className="graph-info-trigger"
+              onMouseEnter={() => setShowInfoTip(true)}
+              onMouseLeave={() => setShowInfoTip(false)}
+              onFocus={() => setShowInfoTip(true)}
+              onBlur={() => setShowInfoTip(false)}
+              tabIndex={0}
+              role="button"
+              aria-label="Graph viewer tips"
+            >
+              <div className={`graph-info-bubble ${showInfoTip ? 'is-visible' : ''}`}>
+                <div className="graph-info-content">
+                  <div className="graph-info-title">Key</div>
+                  <div className="graph-info-entry">
+                    <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
+                      <circle cx={15} cy={20} r={6} fill="#a8e6cf" />
+                    </svg>
+                    <p>Positive terminal state</p>
+                  </div>
+                  <div className="graph-info-entry">
+                    <svg width="12%" height="10%" viewBox="0 0 30 40" preserveAspectRatio="xMidYMid meet">
+                      <circle cx={15} cy={20} r={6} fill="#ffaaa7" />
+                    </svg>
+                    <p>Negative terminal state</p>
+                  </div>
+                </div>
+              </div>
+              <div className="graph-info-trigger__icon">
+                <Info />
+              </div>
+            </div>
+
+            {/* SVG elements stacked in order of rendering (back to front) */}
+            <TransformComponent wrapperClass="graph-view-wrapper" contentClass="graph-view-content">
+              <svg
+                width={width}
+                height={height}
+                viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+                className="graph-viewer-canvas"
+              >
         <defs>
           <marker
             id="policy-arrow"
@@ -528,27 +541,31 @@ export const GraphViewer: React.FC<Props> = ({
             ))}
           </g>
         )}
-      </svg>
+              </svg>
+            </TransformComponent>
 
-      {tooltip && (
-        <div
-          className="graph-tooltip"
-          style={{ left: tooltip.x, top: tooltip.y }}
-        >
-          <div className="graph-tooltip-title">{tooltip.node}</div>
-          <div className="graph-tooltip-list">
-            {tooltip.entries.map((entry) => (
-              <div key={`${tooltip.node}-${entry.target}`} className="graph-tooltip-entry">
-                <span className="graph-tooltip-target">
-                  {entry.direction && <span className="graph-tooltip-direction">{entry.direction}</span>}
-                  {entry.target}
-                </span>
-                <span className="graph-tooltip-value" style={{ color: entry.color }}>{entry.label}</span>
+            {tooltip && (
+              <div
+                className="graph-tooltip"
+                style={{ left: tooltip.x, top: tooltip.y }}
+              >
+                <div className="graph-tooltip-title">{tooltip.node}</div>
+                <div className="graph-tooltip-list">
+                  {tooltip.entries.map((entry) => (
+                    <div key={`${tooltip.node}-${entry.target}`} className="graph-tooltip-entry">
+                      <span className="graph-tooltip-target">
+                        {entry.direction && <span className="graph-tooltip-direction">{entry.direction}</span>}
+                        {entry.target}
+                      </span>
+                      <span className="graph-tooltip-value" style={{ color: entry.color }}>{entry.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
+          </>
+        )}
+      </TransformWrapper>
     </div>
   );
 };

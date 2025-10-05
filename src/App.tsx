@@ -97,8 +97,13 @@ function App() {
             if (expData?.episodes && nextEp < expData.episodes.length) {
               return nextEp;
             }
-            // loop
-            return 0;
+            // finished all episodes; stop playback and scroll to summary
+            setPlaying(false);
+            const summarySection = document.querySelector('#reward-summary');
+            if (summarySection instanceof HTMLElement) {
+              summarySection.scrollIntoView({ behavior: 'smooth' });
+            }
+            return expData?.episodes ? expData.episodes.length - 1 : ei;
           });
           return 0;
         }
@@ -270,7 +275,7 @@ function App() {
       </section>
 
       {mode === 'playback' && rewardTrend.length > 0 && (
-        <section className="snap-section snap-section--centered">
+        <section id="reward-summary" className="snap-section snap-section--centered">
           <RewardTrendChart points={rewardTrend} width={viewerWidth} />
         </section>
       )}
