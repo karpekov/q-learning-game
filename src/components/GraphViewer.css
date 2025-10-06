@@ -47,6 +47,31 @@
   gap: 6px;
 }
 
+.graph-episode-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.graph-episode-input input {
+  width: 64px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(33, 37, 41, 0.3);
+  font-size: 14px;
+}
+
+.graph-episode-input input:focus {
+  outline: none;
+  border-color: rgba(13, 110, 253, 0.7);
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+}
+
+.graph-episode-total {
+  opacity: 0.8;
+}
+
 .graph-stats-checkbox {
   user-select: none;
 }

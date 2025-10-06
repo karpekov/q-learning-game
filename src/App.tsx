@@ -24,6 +24,7 @@ function App() {
   const [stepIdx, setStepIdx] = useState<number>(0);
   const [playing, setPlaying] = useState<boolean>(false);
   const [speedIndex, setSpeedIndex] = useState<number>(3);
+  const [playbackCompleted, setPlaybackCompleted] = useState<boolean>(false);
 
   // Responsive viewer sizing
   const [vw, setVw] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -74,8 +75,19 @@ function App() {
       setExpData(data);
       setEpisodeIdx(0);
       setStepIdx(0);
+      setPlaybackCompleted(false);
     }).catch(console.error);
   }, [graphType, expId, mode]);
+
+  useEffect(() => {
+    if (mode !== 'playback') {
+      setPlaybackCompleted(false);
+    }
+  }, [mode]);
+
+  const currentEpisode: Episode | undefined = useMemo(() => {
+    return expData?.episodes?.[episodeIdx];
+  }, [expData, episodeIdx]);
 
   // Playback loop
   const timerRef = useRef<number | null>(null);
@@ -100,6 +112,7 @@ function App() {
             }
             // finished all episodes; stop playback and scroll to summary
             setPlaying(false);
+            setPlaybackCompleted(true);
             const summarySection = document.querySelector('#reward-summary');
             if (summarySection instanceof HTMLElement) {
               summarySection.scrollIntoView({ behavior: 'smooth' });
@@ -115,11 +128,7 @@ function App() {
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [playing, speedIndex, expData, mode]);
-
-  const currentEpisode: Episode | undefined = useMemo(() => {
-    return expData?.episodes?.[episodeIdx];
-  }, [expData, episodeIdx]);
+  }, [playing, speedIndex, expData, mode, currentEpisode]);
 
   const currentState = useMemo(() => {
     const steps = currentEpisode?.steps || [];
@@ -158,6 +167,15 @@ function App() {
     setMode(pages[clamped]);
   };
 
+  const jumpToEpisode = (value: number) => {
+    if (!expData?.episodes?.length) return;
+    const maxIndex = expData.episodes.length - 1;
+    const target = Math.min(Math.max(0, value), maxIndex);
+    setEpisodeIdx(target);
+    setStepIdx(0);
+    setPlaybackCompleted(false);
+  };
+
   return (
     <div
       className="app-shell"
@@ -180,23 +198,23 @@ function App() {
           </label>
 
           {mode === 'playback' && (
-            <div className="playback-controls">
-              <label>
-                Experiment:&nbsp;
-                <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
-                  {expList?.items.map((it) => (
-                    <option key={it.id} value={it.id}>{it.name}</option>
+          <div className="playback-controls">
+            <label>
+              Experiment:&nbsp;
+              <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
+                {expList?.items.map((it) => (
+                  <option key={it.id} value={it.id}>{it.name}</option>
                   ))}
                 </select>
               </label>
               
               <div className="playback-group">
-                <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); }} title='Restart'><RefreshCcw  className='playback-icon'/></button>
-                <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); }} title='Previous episode'><SkipBack className='playback-icon' /></button>
-                <button onClick={() => setStepIdx((s) => Math.max(0, s - 1))} title='Previous step'><ChevronFirst className='playback-icon' /></button>
-                <button onClick={() => setPlaying((p) => !p)} title='Play/Pause'>{playing ? <Pause className='playback-icon' /> : <Play className='playback-icon'/>}</button>
-                <button onClick={() => setStepIdx((s) => s + 1)} title="Next step"><ChevronLast className='playback-icon' /></button>
-                <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); }} title='Next episode'><SkipForward className='playback-icon' /></button>
+                <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); setPlaybackCompleted(false); }} title='Restart'><RefreshCcw  className='playback-icon'/></button>
+                <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Previous episode'><SkipBack className='playback-icon' /></button>
+                <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => Math.max(0, s - 1)); }} title='Previous step'><ChevronFirst className='playback-icon' /></button>
+                <button onClick={() => { if (!playing) setPlaybackCompleted(false); setPlaying((p) => !p); }} title='Play/Pause'>{playing ? <Pause className='playback-icon' /> : <Play className='playback-icon'/>}</button>
+                <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => s + 1); }} title="Next step"><ChevronLast className='playback-icon' /></button>
+                <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Next episode'><SkipForward className='playback-icon' /></button>
               </div>
 
               <label>
@@ -251,6 +269,11 @@ function App() {
                 } : undefined}
                 policy={mode === 'playback' ? ((expData?.policy as Record<string, string | number> | undefined) ?? null) : null}
                 qValues={mode === 'playback' ? (expData?.q_values ?? null) : null}
+                episodes={mode === 'playback' ? (expData?.episodes ?? null) : null}
+                currentEpisodeIndex={mode === 'playback' ? episodeIdx : undefined}
+                currentStepIndex={mode === 'playback' ? stepIdx : undefined}
+                playbackCompleted={mode === 'playback' ? playbackCompleted : undefined}
+                onEpisodeJump={mode === 'playback' ? jumpToEpisode : undefined}
                 hyperParams={mode === 'playback' ? {
                   alpha: typeof expData?.agent?.alpha === 'number' ? expData.agent.alpha : expData?.episodes?.[episodeIdx]?.alpha,
                   epsilon: typeof expData?.agent?.epsilon === 'number' ? expData.agent.epsilon : expData?.episodes?.[episodeIdx]?.epsilon,

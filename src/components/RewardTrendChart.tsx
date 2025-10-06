@@ -8,8 +8,8 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  type TooltipProps,
 } from 'recharts';
+import type { ValueType, NameType, Payload } from 'recharts/types/component/DefaultTooltipContent';
 import './RewardTrendChart.css';
 
 type Point = {
@@ -23,17 +23,27 @@ type Props = {
   height?: number;
 };
 
-const RewardTooltip: React.FC<TooltipProps<number, string>> = ({ active, payload, label }) => {
+type RewardTooltipPayload = Payload<ValueType, NameType>;
+type RewardTooltipProps = {
+  active?: boolean;
+  payload?: RewardTooltipPayload[];
+  label?: NameType;
+};
+
+const RewardTooltip: React.FC<RewardTooltipProps> = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) {
     return null;
   }
-  const rewardEntry = payload.find((entry) => entry.dataKey === 'reward') ?? payload[payload.length - 1];
-  const rawValue = typeof rewardEntry.value === 'number' ? rewardEntry.value : Number(rewardEntry.value);
+  const typedPayload = payload as Payload<ValueType, NameType>[];
+  const rewardEntry = typedPayload.find((entry) => entry && entry.dataKey === 'reward') ?? typedPayload[typedPayload.length - 1];
+  const rawValue = rewardEntry && typeof rewardEntry.value === 'number'
+    ? rewardEntry.value
+    : Number(rewardEntry?.value);
   const formatted = Number.isFinite(rawValue) ? rawValue.toFixed(2) : '-';
 
   return (
     <div className="reward-tooltip">
-      <div className="reward-tooltip__title">Episode {label}</div>
+      <div className="reward-tooltip__title">Episode {label ?? '-'}</div>
       <div className="reward-tooltip__value">Reward : {formatted}</div>
     </div>
   );

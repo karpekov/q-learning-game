@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Coord, ExperimentDataSummary } from '../types';
+import type { Coord, ExperimentDataSummary, Episode } from '../types';
 import { Info } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import './GraphViewer.css';
@@ -34,6 +34,11 @@ type Props = {
     stepCost?: number | null;
     stochasticity?: number | null;
   } | null;
+  episodes?: Episode[] | null;
+  currentEpisodeIndex?: number;
+  currentStepIndex?: number;
+  playbackCompleted?: boolean;
+  onEpisodeJump?: (episodeIndex: number) => void;
 };
 
 function computeBounds(coords: Record<string, Coord>) {
@@ -87,6 +92,11 @@ export const GraphViewer: React.FC<Props> = ({
   policy,
   qValues,
   hyperParams,
+  episodes,
+  currentEpisodeIndex,
+  currentStepIndex,
+  playbackCompleted,
+  onEpisodeJump,
 }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const { minX, maxX, minY, maxY } = computeBounds(coords);
@@ -177,13 +187,80 @@ export const GraphViewer: React.FC<Props> = ({
     return arrows;
   }, [policy, coords, adjacency]);
 
-  const qValueMap = React.useMemo(() => {
-    if (!qValues) return null;
-    return qValues as Record<string, Record<string, number>>;
+  const finalQValueMap = React.useMemo(() => {
+    if (!qValues) return {} as Record<string, Record<string, number>>;
+    const map: Record<string, Record<string, number>> = {};
+    for (const [state, values] of Object.entries(qValues)) {
+      map[state] = { ...values };
+    }
+    return map;
   }, [qValues]);
 
+  const episodicQValueMap = React.useMemo(() => {
+    if (!episodes || !episodes.length) return null;
+    if (currentEpisodeIndex == null || currentEpisodeIndex < 0) return null;
+    const maxEpisodeIndex = Math.min(currentEpisodeIndex, episodes.length - 1);
+    const curStep = Math.max(0, currentStepIndex ?? 0);
+    const map: Record<string, Record<string, number>> = {};
+
+    const applyUpdate = (state: string, targetKey: string | null, actionKey: string, value: number) => {
+      if (!map[state]) map[state] = {};
+      map[state][actionKey] = value;
+      if (targetKey) {
+        map[state][targetKey] = value;
+      }
+    };
+
+    for (let ei = 0; ei <= maxEpisodeIndex; ei++) {
+      const episode = episodes[ei];
+      if (!episode) continue;
+      const steps = episode.steps || [];
+      const limit = ei === maxEpisodeIndex ? Math.min(curStep, steps.length) : steps.length;
+      for (let si = 0; si < limit; si++) {
+        const step = steps[si];
+        if (!step || typeof step.q_value !== 'number') continue;
+        const state = step.state;
+        if (!state) continue;
+        const neighbors = adjacency[state] || [];
+        let target: string | null = null;
+        if (typeof step.intended === 'string' && step.intended) {
+          target = step.intended;
+        } else if (typeof step.action === 'number' && neighbors[step.action]) {
+          target = neighbors[step.action];
+        } else if (typeof step.action === 'string' && neighbors.includes(step.action)) {
+          target = step.action;
+        } else if (step.next_state) {
+          target = step.next_state;
+        }
+        let actionKey: string;
+        if (typeof step.action === 'number') {
+          actionKey = String(step.action);
+        } else if (typeof step.action === 'string' && step.action) {
+          actionKey = step.action;
+        } else if (target) {
+          actionKey = target;
+        } else {
+          actionKey = '0';
+        }
+        applyUpdate(state, target, actionKey, step.q_value);
+      }
+    }
+
+    return map;
+  }, [episodes, currentEpisodeIndex, currentStepIndex, adjacency]);
+
+  const activeQValueMap = React.useMemo(() => {
+    if (playbackCompleted) {
+      return finalQValueMap;
+    }
+    if (episodicQValueMap) {
+      return episodicQValueMap;
+    }
+    return finalQValueMap;
+  }, [playbackCompleted, episodicQValueMap, finalQValueMap]);
+
   const qValueLabels = React.useMemo(() => {
-    if (!qValueMap) return [] as {
+    if (!activeQValueMap) return [] as {
       key: string;
       x: number;
       y: number;
@@ -202,7 +279,7 @@ export const GraphViewer: React.FC<Props> = ({
     for (const [from, neighbors] of Object.entries(adjacency)) {
       const fromCoord = coords[from];
       if (!fromCoord) continue;
-      const stateValues = qValueMap[from];
+      const stateValues = activeQValueMap[from];
       if (!stateValues) continue;
 
       neighbors.forEach((to, idx) => {
@@ -241,7 +318,7 @@ export const GraphViewer: React.FC<Props> = ({
     }
 
     return labels;
-  }, [qValueMap, adjacency, coords]);
+  }, [activeQValueMap, adjacency, coords]);
 
   const [showPolicy, setShowPolicy] = useState(false);
   const [showQValues, setShowQValues] = useState(false);
@@ -254,15 +331,15 @@ export const GraphViewer: React.FC<Props> = ({
   } | null>(null);
 
   useEffect(() => {
-    if (!qValueMap) {
+    if (!activeQValueMap || Object.keys(activeQValueMap).length === 0) {
       setTooltip(null);
     }
-  }, [qValueMap]);
+  }, [activeQValueMap]);
 
   const resolveQValue = React.useCallback(
     (state: string, to: string, idx: number): number | null => {
-      if (!qValueMap) return null;
-      const stateValues = qValueMap[state];
+      if (!activeQValueMap) return null;
+      const stateValues = activeQValueMap[state];
       if (!stateValues) return null;
       let value = stateValues[to];
       if (value == null) {
@@ -273,12 +350,12 @@ export const GraphViewer: React.FC<Props> = ({
       }
       return value ?? null;
     },
-    [qValueMap]
+    [activeQValueMap]
   );
 
   const updateTooltip = React.useCallback(
     (state: string, event: React.MouseEvent<SVGGElement, MouseEvent>) => {
-      if (!qValueMap) return;
+      if (!activeQValueMap) return;
       const neighbors = adjacency[state] || [];
       const center = coords[state];
       const entries = neighbors
@@ -322,7 +399,7 @@ export const GraphViewer: React.FC<Props> = ({
         entries,
       });
     },
-    [adjacency, coords, qValueMap, resolveQValue]
+    [adjacency, coords, activeQValueMap, resolveQValue]
   );
 
   return (
@@ -368,7 +445,7 @@ export const GraphViewer: React.FC<Props> = ({
                       onChange={() => setShowQValues((v) => !v)}
                       disabled={!qValues}
                     />{' '}
-                    Show Final Q-values
+                    Show Q-values
                   </label>
                 </div>
                 <div className="graph-zoom-controls">
