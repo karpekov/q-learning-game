@@ -89,6 +89,21 @@ function App() {
     return expData?.episodes?.[episodeIdx];
   }, [expData, episodeIdx]);
 
+  const episodeIdxRef = useRef(episodeIdx);
+  useEffect(() => {
+    episodeIdxRef.current = episodeIdx;
+  }, [episodeIdx]);
+
+  const expDataRef = useRef<ExperimentDataSummary | null>(expData);
+  useEffect(() => {
+    expDataRef.current = expData;
+  }, [expData]);
+
+  const stepIdxRef = useRef(stepIdx);
+  useEffect(() => {
+    stepIdxRef.current = stepIdx;
+  }, [stepIdx]);
+
   // Playback loop
   const timerRef = useRef<number | null>(null);
   useEffect(() => {
@@ -99,36 +114,51 @@ function App() {
     }
     const interval = speedFrames[speedIndex] ?? 400;
     timerRef.current = window.setInterval(() => {
-      setStepIdx((prev) => {
-        const eps = currentEpisode;
-        if (!eps) return prev;
-        const next = prev + 1;
-        if (next > eps.steps.length) {
-          // advance episode
-          setEpisodeIdx((ei) => {
-            const nextEp = ei + 1;
-            if (expData?.episodes && nextEp < expData.episodes.length) {
-              return nextEp;
-            }
-            // finished all episodes; stop playback and scroll to summary
-            setPlaying(false);
-            setPlaybackCompleted(true);
-            const summarySection = document.querySelector('#reward-summary');
-            if (summarySection instanceof HTMLElement) {
-              summarySection.scrollIntoView({ behavior: 'smooth' });
-            }
-            return expData?.episodes ? expData.episodes.length - 1 : ei;
-          });
-          return 0;
+      const data = expDataRef.current;
+      const idx = episodeIdxRef.current;
+      const eps = data?.episodes?.[idx];
+      if (!eps) return;
+
+      const nextStep = stepIdxRef.current + 1;
+      if (nextStep > eps.steps.length) {
+        const latestData = expDataRef.current;
+        const nextEp = idx + 1;
+        if (latestData?.episodes && nextEp < latestData.episodes.length) {
+          episodeIdxRef.current = nextEp;
+          stepIdxRef.current = 0;
+          setEpisodeIdx(nextEp);
+          setStepIdx(0);
+          return;
         }
-        return next;
-      });
+
+        setPlaying(false);
+        setPlaybackCompleted(true);
+        const summarySection = document.querySelector('#reward-summary');
+        if (summarySection instanceof HTMLElement) {
+          summarySection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        if (latestData?.episodes && latestData.episodes.length > 0) {
+          const finalIndex = Math.max(0, latestData.episodes.length - 1);
+          episodeIdxRef.current = finalIndex;
+          setEpisodeIdx(finalIndex);
+          stepIdxRef.current = latestData.episodes[finalIndex]?.steps.length ?? 0;
+          setStepIdx((latestData.episodes[finalIndex]?.steps.length ?? 0));
+        } else {
+          stepIdxRef.current = 0;
+          setStepIdx(0);
+        }
+        return;
+      }
+
+      stepIdxRef.current = nextStep;
+      setStepIdx(nextStep);
     }, interval);
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [playing, speedIndex, expData, mode, currentEpisode]);
+  }, [playing, speedIndex, expData, mode]);
 
   const currentState = useMemo(() => {
     const steps = currentEpisode?.steps || [];
