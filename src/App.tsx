@@ -50,6 +50,9 @@ function App() {
 
   // Load graph def when graphType changes
   useEffect(() => {
+    setPlaying(false);
+    setPlaybackCompleted(false);
+    setStepIdx(0);
     api.graphDef(graphType).then(setGraphDef).catch(console.error);
     if (mode === 'playback') {
       // Load experiments for graph
@@ -63,6 +66,11 @@ function App() {
 
   // Load experiment data when expId changes (only in playback mode)
   useEffect(() => {
+    if (expId) {
+      setPlaying(false);
+      setPlaybackCompleted(false);
+      setStepIdx(0);
+    }
     if (mode !== 'playback') {
       setExpData(null);
       return;
@@ -305,8 +313,14 @@ function App() {
                 playbackCompleted={mode === 'playback' ? playbackCompleted : undefined}
                 onEpisodeJump={mode === 'playback' ? jumpToEpisode : undefined}
                 hyperParams={mode === 'playback' ? {
-                  alpha: typeof expData?.agent?.alpha === 'number' ? expData.agent.alpha : expData?.episodes?.[episodeIdx]?.alpha,
-                  epsilon: typeof expData?.agent?.epsilon === 'number' ? expData.agent.epsilon : expData?.episodes?.[episodeIdx]?.epsilon,
+                  alpha: typeof expData?.episodes?.[episodeIdx]?.alpha === 'number'
+                    ? expData?.episodes?.[episodeIdx]?.alpha
+                    : (typeof expData?.agent?.alpha === 'number' ? expData.agent.alpha : undefined),
+                  epsilon: typeof expData?.episodes?.[episodeIdx]?.epsilon === 'number'
+                    ? expData?.episodes?.[episodeIdx]?.epsilon
+                    : (typeof expData?.agent?.epsilon === 'number' ? expData.agent.epsilon : undefined),
+                  alphaDecayRate: typeof expData?.agent?.alpha_decay_rate === 'number' ? expData.agent.alpha_decay_rate : undefined,
+                  epsilonDecay: typeof expData?.agent?.epsilon_decay === 'number' ? expData.agent.epsilon_decay : undefined,
                   gamma: typeof expData?.agent?.gamma === 'number' ? expData.agent.gamma : undefined,
                   stepCost: typeof expData?.environment?.step_cost === 'number' ? expData.environment.step_cost : undefined,
                   stochasticity: typeof expData?.environment?.stochasticity === 'number' ? expData.environment.stochasticity : undefined,

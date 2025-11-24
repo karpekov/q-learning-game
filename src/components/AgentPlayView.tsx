@@ -49,6 +49,7 @@ export const AgentPlayView: React.FC<Props> = ({
   const start = useMemo(() => defaultStart(coords), [coords]);
   const [current, setCurrent] = useState<string>(start);
   const [visited, setVisited] = useState<Set<string>>(new Set([start]));
+  const [everVisited, setEverVisited] = useState<Set<string>>(new Set([start]));
   const [path, setPath] = useState<string[]>([start]);
   const [ended, setEnded] = useState<boolean>(false);
   const [episodes, setEpisodes] = useState<number[]>([]); // rewards per finished round
@@ -66,11 +67,11 @@ export const AgentPlayView: React.FC<Props> = ({
     if (easyMode) {
       return new Set<string>(Object.keys(coords));
     }
-    const set = new Set<string>(visited);
+    const set = new Set<string>(everVisited);
     if (current) set.add(current);
     neighbors.forEach((n) => set.add(n));
     return set;
-  }, [visited, current, neighbors, easyMode, coords]);
+  }, [everVisited, current, neighbors, easyMode, coords]);
 
   const pathSegments = useMemo(() => {
     const segments: { key: string; from: Coord; to: Coord }[] = [];
@@ -136,6 +137,7 @@ export const AgentPlayView: React.FC<Props> = ({
     const actual = pickStochasticNeighbor(intended);
     setCurrent(actual);
     setVisited((prev) => new Set<string>(prev).add(actual));
+    setEverVisited((prev) => new Set<string>(prev).add(actual));
     setPath((prev) => [...prev, actual]);
     if (actual in terminalRewards) {
       const reward = terminalRewards[actual];
@@ -151,6 +153,7 @@ export const AgentPlayView: React.FC<Props> = ({
     const s = defaultStart(coords);
     setCurrent(s);
     setVisited(new Set([s]));
+    setEverVisited((prev) => new Set(prev).add(s));
     setPath([s]);
     setEnded(false);
   }
@@ -168,6 +171,7 @@ export const AgentPlayView: React.FC<Props> = ({
   // Reset play state whenever the graph changes
   useEffect(() => {
     reset();
+    setEverVisited(new Set([defaultStart(coords)]));
     setEpisodes([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords, adjacency]);
@@ -228,6 +232,16 @@ export const AgentPlayView: React.FC<Props> = ({
           e.preventDefault();
           moveTo(next);
         }
+      }
+
+      // if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+      //   e.preventDefault();
+      //   undo();
+      // }
+
+      if (e.key === 'Enter' && ended) {
+        e.preventDefault();
+        reset();
       }
     }
 
@@ -391,20 +405,30 @@ export const AgentPlayView: React.FC<Props> = ({
                     const isNeighbor = neighbors.includes(state);
                     const isTerminal = state in terminalRewards;
                     const hasVisited = visited.has(state);
-                    const showTerminalColor = isTerminal && hasVisited;
+                    const wasEverVisited = everVisited.has(state);
+                    const showTerminalColor = isTerminal && (hasVisited || wasEverVisited || easyMode);
                     const fill = isCurrent
                       ? showTerminalColor
                         ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
                         : '#fdf0ac'
                       : showTerminalColor
                         ? (terminalRewards[state] > 0 ? '#a8e6cf' : '#ffaaa7')
-                        : '#e9ecef';
+                        : wasEverVisited
+                          ? '#dfe6ed'
+                          : '#e9ecef';
                     const opacity = isCurrent ? 1 : isNeighbor ? 0.5 : 1;
                     const r = 0.25;
+                    const d = r * Math.SQRT1_2; // half-diagonal to draw X crosshair
                     const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
                     return (
                       <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
                         <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
+                        {!isTerminal && (
+                          <>
+                            <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
+                            <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
+                          </>
+                        )}
                       </g>
                     );
                   })}
