@@ -30,6 +30,8 @@ type Props = {
   hyperParams?: {
     alpha?: number | null;
     epsilon?: number | null;
+    alphaDecayRate?: number | null;
+    epsilonDecay?: number | null;
     gamma?: number | null;
     stepCost?: number | null;
     stochasticity?: number | null;
@@ -323,6 +325,8 @@ export const GraphViewer: React.FC<Props> = ({
   const [showPolicy, setShowPolicy] = useState(false);
   const [showQValues, setShowQValues] = useState(false);
   const [showInfoTip, setShowInfoTip] = useState(false);
+  const [showAlphaTip, setShowAlphaTip] = useState(false);
+  const [showEpsilonTip, setShowEpsilonTip] = useState(false);
   const [tooltip, setTooltip] = useState<{
     node: string;
     x: number;
@@ -335,6 +339,23 @@ export const GraphViewer: React.FC<Props> = ({
       setTooltip(null);
     }
   }, [activeQValueMap]);
+
+  const formatParam = (value: number | null | undefined, digits: number) => {
+    if (value == null || Number.isNaN(value)) return '-';
+    return value.toFixed(digits);
+  };
+
+  const alphaTip = hyperParams
+    ? (hyperParams.alphaDecayRate != null
+      ? `Alpha decay rate per episode: ${hyperParams.alphaDecayRate}`
+      : 'Alpha decay: none')
+    : undefined;
+
+  const epsilonTip = hyperParams
+    ? (hyperParams.epsilonDecay != null
+      ? `Epsilon decay factor per episode: ${hyperParams.epsilonDecay}`
+      : 'Epsilon decay: none')
+    : undefined;
 
   const resolveQValue = React.useCallback(
     (state: string, to: string, idx: number): number | null => {
@@ -413,12 +434,50 @@ export const GraphViewer: React.FC<Props> = ({
         panning={{ velocity: 0.2, limitToBounds: false }}
       >
         {({ zoomIn, zoomOut, resetTransform }) => (
-          <>
+              <>
             {playbackStats && (
               <div className="graph-stats-panel">
                 <div className="graph-stats-summary">
-                  <p><strong>Alpha:</strong> {hyperParams?.alpha != null ? hyperParams.alpha.toFixed(6) : '-'}</p>
-                  <p><strong>Epsilon:</strong> {hyperParams?.epsilon != null ? hyperParams.epsilon.toFixed(6) : '-'}</p>
+                  <div className="graph-inline-info">
+                    <p><strong>Alpha:</strong> {formatParam(hyperParams?.alpha, 6)}</p>
+                    <span
+                      className="graph-inline-info__icon"
+                      onMouseEnter={() => setShowAlphaTip(true)}
+                      onMouseLeave={() => setShowAlphaTip(false)}
+                      onFocus={() => setShowAlphaTip(true)}
+                      onBlur={() => setShowAlphaTip(false)}
+                      tabIndex={0}
+                      aria-label="Alpha decay info"
+                    >
+                      <Info size={14} />
+                      <div className={`graph-info-bubble graph-info-bubble--inline graph-info-content ${showAlphaTip ? 'is-visible' : ''}`}>
+                        {/* <div className="graph-info-content"> */}
+                          <div className="graph-info-title">Alpha decay</div>
+                          <p>{alphaTip || 'Alpha decay: none'}</p>
+                        {/* </div> */}
+                      </div>
+                    </span>
+                  </div>
+                  <div className="graph-inline-info">
+                    <p><strong>Epsilon:</strong> {formatParam(hyperParams?.epsilon, 6)}</p>
+                    <span
+                      className="graph-inline-info__icon"
+                      onMouseEnter={() => setShowEpsilonTip(true)}
+                      onMouseLeave={() => setShowEpsilonTip(false)}
+                      onFocus={() => setShowEpsilonTip(true)}
+                      onBlur={() => setShowEpsilonTip(false)}
+                      tabIndex={0}
+                      aria-label="Epsilon decay info"
+                    >
+                      <Info size={14} />
+                      <div className={`graph-info-bubble graph-info-bubble--inline graph-info-content ${showEpsilonTip ? 'is-visible' : ''}`}>
+                        {/* <div className="graph-info-content"> */}
+                          <div className="graph-info-title">Epsilon decay</div>
+                          <p>{epsilonTip || 'Epsilon decay: none'}</p>
+                        {/* </div> */}
+                      </div>
+                    </span>
+                  </div>
                   <p><strong>Gamma:</strong> {hyperParams?.gamma != null ? hyperParams.gamma.toFixed(3) : '-'}</p>
                   <p><strong>Step cost:</strong> {hyperParams?.stepCost != null ? hyperParams.stepCost.toFixed(3) : '-'}</p>
                   <p><strong>Stochasticity:</strong> {hyperParams?.stochasticity != null ? `${(hyperParams.stochasticity * 100).toFixed(1)}%` : '-'}</p>
@@ -583,6 +642,50 @@ export const GraphViewer: React.FC<Props> = ({
               : '#e9ecef';
             const stroke = '#343a40';
             const r = 0.25;
+            const d = r * Math.SQRT1_2; // half-diagonal to draw X crosshair
+            const quadrantBounds = [
+              { key: 'top', start: -135, end: -45 },
+              { key: 'right', start: -45, end: 45 },
+              { key: 'bottom', start: 45, end: 135 },
+              { key: 'left', start: 135, end: 225 },
+            ] as const;
+
+            const quadrantValues: Record<string, number | null> = {
+              top: null,
+              right: null,
+              bottom: null,
+              left: null,
+            };
+
+            const neighbors = adjacency[state] || [];
+            neighbors.forEach((to, idx) => {
+              const value = resolveQValue(state, to, idx);
+              if (value == null) return;
+              const toCoord = coords[to];
+              if (!toCoord) return;
+              const [tx, ty] = toCoord;
+              const angleDeg = Math.atan2(ty - y, tx - x) * (180 / Math.PI);
+              let key: 'top' | 'right' | 'bottom' | 'left' = 'left';
+              if (angleDeg >= -135 && angleDeg < -45) key = 'top';
+              else if (angleDeg >= -45 && angleDeg < 45) key = 'right';
+              else if (angleDeg >= 45 && angleDeg < 135) key = 'bottom';
+              else key = 'left';
+              const prev = quadrantValues[key];
+              if (prev == null || value > prev) {
+                quadrantValues[key] = value;
+              }
+            });
+
+            const arcPath = (cx: number, cy: number, radius: number, startDeg: number, endDeg: number) => {
+              const startRad = (startDeg * Math.PI) / 180;
+              const endRad = (endDeg * Math.PI) / 180;
+              const sx = cx + radius * Math.cos(startRad);
+              const sy = cy + radius * Math.sin(startRad);
+              const ex = cx + radius * Math.cos(endRad);
+              const ey = cy + radius * Math.sin(endRad);
+              return `M ${cx} ${cy} L ${sx} ${sy} A ${radius} ${radius} 0 0 1 ${ex} ${ey} Z`;
+            };
+
             return (
               <g
                 key={state}
@@ -591,6 +694,24 @@ export const GraphViewer: React.FC<Props> = ({
                 onMouseLeave={() => setTooltip(null)}
               >
                 <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
+                {!isTerminal && (
+                  <>
+                    {quadrantBounds.map(({ key, start, end }) => {
+                      const value = quadrantValues[key];
+                      const color = value == null ? fill : qValueColor(value);
+                      return (
+                        <path
+                          key={`${state}-quad-${key}`}
+                          d={arcPath(x, y, r, start, end)}
+                          fill={color}
+                          opacity={0.9}
+                        />
+                      );
+                    })}
+                    <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} />
+                    <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} />
+                  </>
+                )}
               </g>
             );
           })}
