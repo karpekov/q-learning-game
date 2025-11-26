@@ -12,6 +12,28 @@
   align-items: baseline;
 }
 
+.reward-chart__legend {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.reward-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reward-chart__legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
 .reward-chart__title {
   font-family: var(--font-space-grotesk);
   font-weight: 700;
@@ -21,6 +43,8 @@
 .reward-chart__meta {
   font-size: 12px;
   color: #6c757d;
+  display: flex;
+  gap: 24px;
 }
 
 .reward-chart__body {
@@ -48,4 +72,3 @@
 .reward-tooltip__value {
   font-weight: 500;
 }
-
