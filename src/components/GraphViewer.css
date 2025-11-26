@@ -21,9 +21,24 @@
   align-content: flex-start;
   font-size: 14px;
   border-radius: 8px;
-  background-color: rgba(234, 238, 224, 0.7);
+  background-color: transparent;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
-  /* backdrop-filter: blur(4px); */
+}
+
+.graph-stats-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(234, 238, 224, 0.6);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.graph-stats-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 .graph-stats-summary {

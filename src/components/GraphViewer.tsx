@@ -376,7 +376,6 @@ export const GraphViewer: React.FC<Props> = ({
 
   const updateTooltip = React.useCallback(
     (state: string, event: React.MouseEvent<SVGGElement, MouseEvent>) => {
-      if (!activeQValueMap) return;
       const neighbors = adjacency[state] || [];
       const center = coords[state];
       const entries = neighbors
@@ -404,6 +403,16 @@ export const GraphViewer: React.FC<Props> = ({
         })
         .filter((entry): entry is { target: string; label: string; color: string; direction: string } => entry !== null);
 
+      const terminalReward = terminalRewards[state];
+      if (terminalReward != null) {
+        entries.push({
+          target: 'Terminal reward',
+          label: formatQValue(terminalReward),
+          color: qValueColor(terminalReward),
+          direction: '',
+        });
+      }
+
       if (entries.length === 0) {
         setTooltip(null);
         return;
@@ -420,7 +429,7 @@ export const GraphViewer: React.FC<Props> = ({
         entries,
       });
     },
-    [adjacency, coords, activeQValueMap, resolveQValue]
+    [adjacency, coords, activeQValueMap, resolveQValue, terminalRewards]
   );
 
   return (
@@ -556,189 +565,197 @@ export const GraphViewer: React.FC<Props> = ({
                 viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
                 className="graph-viewer-canvas"
               >
-        <defs>
-          <marker
-            id="policy-arrow"
-            viewBox="0 0 4 4"
-            refX="3"
-            refY="2"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto"
-            markerUnits="strokeWidth"
-          >
-            <path d="M0,0 L4,2 L0,4 z" fill="#f08c00" />
-          </marker>
-          <marker
-            id="path-arrow"
-            viewBox="0 0 4 4"
-            refX="3"
-            refY="2"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto"
-            markerUnits="strokeWidth"
-          >
-            <path d="M0,0 L4,2 L0,4 z" fill="#0d6efd" />
-          </marker>
-        </defs>
+                <defs>
+                  <marker
+                    id="policy-arrow"
+                    viewBox="0 0 4 4"
+                    refX="3"
+                    refY="2"
+                    markerWidth="4"
+                    markerHeight="4"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M0,0 L4,2 L0,4 z" fill="#f08c00" />
+                  </marker>
+                  <marker
+                    id="path-arrow"
+                    viewBox="0 0 4 4"
+                    refX="3"
+                    refY="2"
+                    markerWidth="4"
+                    markerHeight="4"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M0,0 L4,2 L0,4 z" fill="#0d6efd" />
+                  </marker>
+                </defs>
 
-        {/* Edges */}
-        <g stroke="#bbb" strokeWidth={0.05}>
-          {Object.entries(adjacency).map(([from, neighbors]) => {
-            const fromC = coords[from];
-            if (!fromC) return null;
-            return neighbors.map((to) => {
-              const toC = coords[to];
-              if (!toC) return null;
-              return <line key={`${from}->${to}`} x1={fromC[0]} y1={fromC[1]} x2={toC[0]} y2={toC[1]} />;
-            });
-          })}
-        </g>
+                {/* Edges */}
+                <g stroke="#bbb" strokeWidth={0.05}>
+                  {Object.entries(adjacency).map(([from, neighbors]) => {
+                    const fromC = coords[from];
+                    if (!fromC) return null;
+                    return neighbors.map((to) => {
+                      const toC = coords[to];
+                      if (!toC) return null;
+                      return <line key={`${from}->${to}`} x1={fromC[0]} y1={fromC[1]} x2={toC[0]} y2={toC[1]} />;
+                    });
+                  })}
+                </g>
 
-        {/* Path */}
-        {pathSegments.length > 0 && (
-          <g stroke="#0d6efd" strokeWidth={0.12} strokeOpacity={0.9}>
-            {pathSegments.map(({ key, from, to }) => (
-              <line
-                key={`path-${key}`}
-                x1={from[0]}
-                y1={from[1]}
-                x2={to[0]}
-                y2={to[1]}
-                markerEnd="url(#path-arrow)"
-              />
-            ))}
-          </g>
-        )}
-
-        {/* Policy arrows */}
-        {showPolicy && policyArrows.length > 0 && (
-          <g stroke="#f08c00" strokeWidth={0.08} opacity={0.7}>
-            {policyArrows.map(({ key, startX, startY, endX, endY }) => (
-              <line
-                key={`policy-${key}`}
-                x1={startX}
-                y1={startY}
-                x2={endX}
-                y2={endY}
-                markerEnd="url(#policy-arrow)"
-              />
-            ))}
-          </g>
-        )}
-
-        {/* Nodes */}
-        <g>
-          {Object.entries(coords).map(([state, [x, y]]) => {
-            const isCurrent = currentState === state;
-            const isTerminal = state in terminalRewards;
-            const fill = isCurrent
-              ? '#fdf0ac'
-              : isTerminal
-              ? terminalRewards[state] > 0
-                ? '#a8e6cf'
-                : '#ffaaa7'
-              : '#e9ecef';
-            const stroke = '#343a40';
-            const r = 0.25;
-            const d = r * Math.SQRT1_2; // half-diagonal to draw X crosshair
-            const quadrantBounds = [
-              { key: 'top', start: -135, end: -45 },
-              { key: 'right', start: -45, end: 45 },
-              { key: 'bottom', start: 45, end: 135 },
-              { key: 'left', start: 135, end: 225 },
-            ] as const;
-
-            const quadrantValues: Record<string, number | null> = {
-              top: null,
-              right: null,
-              bottom: null,
-              left: null,
-            };
-
-            const neighbors = adjacency[state] || [];
-            neighbors.forEach((to, idx) => {
-              const value = resolveQValue(state, to, idx);
-              if (value == null) return;
-              const toCoord = coords[to];
-              if (!toCoord) return;
-              const [tx, ty] = toCoord;
-              const angleDeg = Math.atan2(ty - y, tx - x) * (180 / Math.PI);
-              let key: 'top' | 'right' | 'bottom' | 'left' = 'left';
-              if (angleDeg >= -135 && angleDeg < -45) key = 'top';
-              else if (angleDeg >= -45 && angleDeg < 45) key = 'right';
-              else if (angleDeg >= 45 && angleDeg < 135) key = 'bottom';
-              else key = 'left';
-              const prev = quadrantValues[key];
-              if (prev == null || value > prev) {
-                quadrantValues[key] = value;
-              }
-            });
-
-            const arcPath = (cx: number, cy: number, radius: number, startDeg: number, endDeg: number) => {
-              const startRad = (startDeg * Math.PI) / 180;
-              const endRad = (endDeg * Math.PI) / 180;
-              const sx = cx + radius * Math.cos(startRad);
-              const sy = cy + radius * Math.sin(startRad);
-              const ex = cx + radius * Math.cos(endRad);
-              const ey = cy + radius * Math.sin(endRad);
-              return `M ${cx} ${cy} L ${sx} ${sy} A ${radius} ${radius} 0 0 1 ${ex} ${ey} Z`;
-            };
-
-            return (
-              <g
-                key={state}
-                onMouseEnter={(event) => updateTooltip(state, event)}
-                onMouseMove={(event) => updateTooltip(state, event)}
-                onMouseLeave={() => setTooltip(null)}
-              >
-                <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
-                {!isTerminal && (
-                  <>
-                    {quadrantBounds.map(({ key, start, end }) => {
-                      const value = quadrantValues[key];
-                      const color = value == null ? fill : qValueColor(value);
+                {/* Path */}
+                {pathSegments.length > 0 && (
+                  <g stroke="#0d6efd" strokeWidth={0.04} strokeOpacity={0.9}>
+                    {pathSegments.map(({ key, from, to }) => {
+                      const dx = to[0] - from[0];
+                      const dy = to[1] - from[1];
+                      const length = Math.hypot(dx, dy) || 1;
+                      // shorten the line so arrowheads don't overlap the node circles
+                      const startFactor = Math.min(0.25, 0.22 + 0.14 / length);
+                      const endFactor = Math.max(0.55, 0.88 - 0.14 / length);
                       return (
-                        <path
-                          key={`${state}-quad-${key}`}
-                          d={arcPath(x, y, r, start, end)}
-                          fill={color}
-                          opacity={0.9}
+                        <line
+                          key={`path-${key}`}
+                          x1={from[0] + dx * startFactor}
+                          y1={from[1] + dy * startFactor}
+                          x2={from[0] + dx * endFactor}
+                          y2={from[1] + dy * endFactor}
+                          markerEnd="url(#path-arrow)"
                         />
                       );
                     })}
-                    <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} />
-                    <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} />
-                  </>
+                  </g>
                 )}
-              </g>
-            );
-          })}
-        </g>
 
-        {/* Q-value labels */}
-        {showQValues && qValueLabels.length > 0 && (
-          <g>
-            {qValueLabels.map(({ key, x, y, label, color }) => (
-              <text
-                key={`q-${key}`}
-                x={x}
-                y={y}
-                fontSize={0.2}
-                fill={color}
-                textAnchor="middle"
-                alignmentBaseline="middle"
-                paintOrder="stroke"
-                stroke="#343a40"
-                strokeWidth={0.01}
-                pointerEvents="none"
-              >
-                {label}
-              </text>
-            ))}
-          </g>
-        )}
+                {/* Policy arrows */}
+                {showPolicy && policyArrows.length > 0 && (
+                  <g stroke="#f08c00" strokeWidth={0.05} opacity={0.7}>
+                    {policyArrows.map(({ key, startX, startY, endX, endY }) => (
+                      <line
+                        key={`policy-${key}`}
+                        x1={startX}
+                        y1={startY}
+                        x2={endX}
+                        y2={endY}
+                        markerEnd="url(#policy-arrow)"
+                      />
+                    ))}
+                  </g>
+                )}
+
+                {/* Nodes */}
+                <g>
+                  {Object.entries(coords).map(([state, [x, y]]) => {
+                    const isCurrent = currentState === state;
+                    const isTerminal = state in terminalRewards;
+                    const fill = isCurrent
+                      ? '#fdf0ac'
+                      : isTerminal
+                      ? terminalRewards[state] > 0
+                        ? '#a8e6cf'
+                        : '#ffaaa7'
+                      : '#e9ecef';
+                    const stroke = '#343a40';
+                    const r = 0.25;
+                    const d = r * Math.SQRT1_2; // half-diagonal to draw X crosshair
+                    const quadrantBounds = [
+                      { key: 'top', start: -135, end: -45 },
+                      { key: 'right', start: -45, end: 45 },
+                      { key: 'bottom', start: 45, end: 135 },
+                      { key: 'left', start: 135, end: 225 },
+                    ] as const;
+
+                    const quadrantValues: Record<string, number | null> = {
+                      top: null,
+                      right: null,
+                      bottom: null,
+                      left: null,
+                    };
+
+                    const neighbors = adjacency[state] || [];
+                    neighbors.forEach((to, idx) => {
+                      const value = resolveQValue(state, to, idx);
+                      if (value == null) return;
+                      const toCoord = coords[to];
+                      if (!toCoord) return;
+                      const [tx, ty] = toCoord;
+                      const angleDeg = Math.atan2(ty - y, tx - x) * (180 / Math.PI);
+                      let key: 'top' | 'right' | 'bottom' | 'left' = 'left';
+                      if (angleDeg >= -135 && angleDeg < -45) key = 'top';
+                      else if (angleDeg >= -45 && angleDeg < 45) key = 'right';
+                      else if (angleDeg >= 45 && angleDeg < 135) key = 'bottom';
+                      else key = 'left';
+                      const prev = quadrantValues[key];
+                      if (prev == null || value > prev) {
+                        quadrantValues[key] = value;
+                      }
+                    });
+
+                    const arcPath = (cx: number, cy: number, radius: number, startDeg: number, endDeg: number) => {
+                      const startRad = (startDeg * Math.PI) / 180;
+                      const endRad = (endDeg * Math.PI) / 180;
+                      const sx = cx + radius * Math.cos(startRad);
+                      const sy = cy + radius * Math.sin(startRad);
+                      const ex = cx + radius * Math.cos(endRad);
+                      const ey = cy + radius * Math.sin(endRad);
+                      return `M ${cx} ${cy} L ${sx} ${sy} A ${radius} ${radius} 0 0 1 ${ex} ${ey} Z`;
+                    };
+
+                    return (
+                      <g
+                        key={state}
+                        onMouseEnter={(event) => updateTooltip(state, event)}
+                        onMouseMove={(event) => updateTooltip(state, event)}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
+                        {!isTerminal && (
+                          <>
+                            {quadrantBounds.map(({ key, start, end }) => {
+                              const value = quadrantValues[key];
+                              const color = value == null ? fill : qValueColor(value);
+                              return (
+                                <path
+                                  key={`${state}-quad-${key}`}
+                                  d={arcPath(x, y, r, start, end)}
+                                  fill={color}
+                                  opacity={0.9}
+                                />
+                              );
+                            })}
+                            <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} />
+                            <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} />
+                          </>
+                        )}
+                      </g>
+                    );
+                  })}
+                </g>
+
+                {/* Q-value labels */}
+                {showQValues && qValueLabels.length > 0 && (
+                  <g>
+                    {qValueLabels.map(({ key, x, y, label, color }) => (
+                      <text
+                        key={`q-${key}`}
+                        x={x}
+                        y={y}
+                        fontSize={0.2}
+                        fill={color}
+                        textAnchor="middle"
+                        alignmentBaseline="middle"
+                        paintOrder="stroke"
+                        stroke="#343a40"
+                        strokeWidth={0.01}
+                        pointerEvents="none"
+                      >
+                        {label}
+                      </text>
+                    ))}
+                  </g>
+                )}
               </svg>
             </TransformComponent>
 

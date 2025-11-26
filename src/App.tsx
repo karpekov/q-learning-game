@@ -29,19 +29,32 @@ function App() {
   // Responsive viewer sizing
   const [vw, setVw] = useState<number>(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const [vh, setVh] = useState<number>(typeof window !== 'undefined' ? window.innerHeight : 800);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>(180);
   useEffect(() => {
     function onResize() {
       setVw(window.innerWidth);
       setVh(window.innerHeight);
+      measureHeader();
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
   
   const horizontalPadding = 32; // matches page padding
-  const reservedTop = 140; // header + controls approx
   const viewerWidth = Math.max(320, vw - horizontalPadding);
-  const viewerHeight = Math.max(300, vh - reservedTop);
+  const viewerHeight = Math.max(300, vh - headerHeight - 24); // leave a small buffer
+
+  const measureHeader = () => {
+    const h = headerRef.current?.getBoundingClientRect().height ?? 0;
+    if (h && Math.abs(h - headerHeight) > 2) {
+      setHeaderHeight(h);
+    }
+  };
+
+  useEffect(() => {
+    measureHeader();
+  }, [mode, expId, graphType, expData, vw, vh]);
 
   // Load graphs on mount
   useEffect(() => {
@@ -220,51 +233,53 @@ function App() {
       id='container'
     >
       <section className="snap-section">
-        <h2 className="app-title">Q-Learning Visualizer</h2>
+        <div ref={headerRef}>
+          <h2 className="app-title">Q-Learning Visualizer</h2>
 
-        {/* Controls: graph + experiment selection */}
-        <div className="app-controls">
-          <ModePager mode={mode === 'play' ? 'play' : 'playback'} onChange={(m) => {setMode(m); setPlaying(false);}} />
+          {/* Controls: graph + experiment selection */}
+          <div className="app-controls">
+            <ModePager mode={mode === 'play' ? 'play' : 'playback'} onChange={(m) => {setMode(m); setPlaying(false);}} />
 
-          <label>
-            Graph:&nbsp;
-            <select value={graphType} onChange={(e) => setGraphType(e.target.value)}>
-              {graphs.map((g) => (
-                <option key={g.key} value={g.key}>{g.key}</option>
-              ))}
-            </select>
-          </label>
-
-          {mode === 'playback' && (
-          <div className="playback-controls">
             <label>
-              Experiment:&nbsp;
-              <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
-                {expList?.items.map((it) => (
-                  <option key={it.id} value={it.id}>{it.name}</option>
-                  ))}
-                </select>
-              </label>
-              
-              <div className="playback-group">
-                <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); setPlaybackCompleted(false); }} title='Restart'><RefreshCcw  className='playback-icon'/></button>
-                <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Previous episode'><SkipBack className='playback-icon' /></button>
-                <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => Math.max(0, s - 1)); }} title='Previous step'><ChevronFirst className='playback-icon' /></button>
-                <button onClick={() => { if (!playing) setPlaybackCompleted(false); setPlaying((p) => !p); }} title='Play/Pause'>{playing ? <Pause className='playback-icon' /> : <Play className='playback-icon'/>}</button>
-                <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => s + 1); }} title="Next step"><ChevronLast className='playback-icon' /></button>
-                <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Next episode'><SkipForward className='playback-icon' /></button>
-              </div>
+              Graph:&nbsp;
+              <select value={graphType} onChange={(e) => setGraphType(e.target.value)}>
+                {graphs.map((g) => (
+                  <option key={g.key} value={g.key}>{g.key}</option>
+                ))}
+              </select>
+            </label>
 
+            {mode === 'playback' && (
+            <div className="playback-controls">
               <label>
-                Speed:&nbsp;
-                <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
-                  {speedOptions.map((name, i) => (
-                    <option key={name} value={i}>{name}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
+                Experiment:&nbsp;
+                <select className="select-wide" value={expId} onChange={(e) => setExpId(e.target.value)}>
+                  {expList?.items.map((it) => (
+                    <option key={it.id} value={it.id}>{it.name}</option>
+                    ))}
+                  </select>
+                </label>
+                
+                <div className="playback-group">
+                  <button onClick={() => { setStepIdx(0); setPlaying(false); setEpisodeIdx(0); setPlaybackCompleted(false); }} title='Restart'><RefreshCcw  className='playback-icon'/></button>
+                  <button onClick={() => { setEpisodeIdx((i) => Math.max(0, i - 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Previous episode'><SkipBack className='playback-icon' /></button>
+                  <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => Math.max(0, s - 1)); }} title='Previous step'><ChevronFirst className='playback-icon' /></button>
+                  <button onClick={() => { if (!playing) setPlaybackCompleted(false); setPlaying((p) => !p); }} title='Play/Pause'>{playing ? <Pause className='playback-icon' /> : <Play className='playback-icon'/>}</button>
+                  <button onClick={() => { setPlaybackCompleted(false); setStepIdx((s) => s + 1); }} title="Next step"><ChevronLast className='playback-icon' /></button>
+                  <button onClick={() => { if (expData?.episodes) setEpisodeIdx((i) => Math.min(expData.episodes!.length - 1, i + 1)); setStepIdx(0); setPlaybackCompleted(false); }} title='Next episode'><SkipForward className='playback-icon' /></button>
+                </div>
+
+                <label>
+                  Speed:&nbsp;
+                  <select value={speedIndex} onChange={(e) => setSpeedIndex(parseInt(e.target.value, 10))}>
+                    {speedOptions.map((name, i) => (
+                      <option key={name} value={i}>{name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Viewers with smooth transition */}

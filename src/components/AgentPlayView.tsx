@@ -423,12 +423,12 @@ export const AgentPlayView: React.FC<Props> = ({
                     return (
                       <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
                         <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
-                        {!isTerminal && (
+                        {/* {!isTerminal && (
                           <>
                             <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
                             <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
                           </>
-                        )}
+                        )} */}
                       </g>
                     );
                   })}

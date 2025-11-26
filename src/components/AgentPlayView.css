@@ -9,17 +9,17 @@
   position: absolute;
   bottom: 8px;
   left: 8px;
+  z-index: 50;
   display: flex;
   flex-direction: column;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 20px;
   padding: 12px;
-  width: 22%;
+  width: 360px;
   border-radius: 8px;
   background-color: rgba(234, 238, 224, 0.7);
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(4px);
-  z-index: 50;
   font-size: 14px;
 }
 
@@ -47,12 +47,17 @@
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agent-controls-column {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .agent-zoom-controls {
@@ -64,17 +69,19 @@
 .agent-range-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .agent-range-value {
-  min-width: 36px;
+  min-width: 28px;
   text-align: right;
 }
 
 .agent-checkbox-row {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .agent-checkbox-input {
@@ -90,14 +97,14 @@
 }
 
 .agent-info-tip {
-  position: relative;
-  bottom: 100%;
+  position: absolute;
+  bottom: 120%;
   left: 50%;
   transform: translate(-6px, 6px) scale(0.92);
   transform-origin: bottom left;
   opacity: 0;
   pointer-events: none;
-  background-color: rgba(33, 37, 41, 0.85);
+  background-color: rgba(33, 37, 41, 0.6);
   color: #f8f9fa;
   padding: 6px 10px;
   border-radius: 6px;
@@ -106,7 +113,7 @@
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
   transition: opacity 160ms ease, transform 200ms ease;
   white-space: nowrap;
-  z-index: 40;
+  z-index: 80;
   backdrop-filter: blur(4px);
 }
 
@@ -153,6 +160,9 @@
   font-size: 14px;
   z-index: 50;
   color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .agent-stats__completed {
@@ -176,20 +186,4 @@
 .agent-stats__negative {
   color: #ffaaa7;
   font-weight: 600;
-}
-
-.agent-info-tip {
-  position: absolute;
-  bottom: 125%;
-  left: 50%;
-  background-color: rgba(33, 37, 41, 0.6);
-  color: #f8f9fa;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 14px;
-  white-space: nowrap;
-  z-index: 100;
-  width: max-content;
-  flex-wrap: wrap;
-  backdrop-filter: blur(4px);
 }
