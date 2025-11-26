@@ -450,11 +450,11 @@ export const GraphViewer: React.FC<Props> = ({
                       aria-label="Alpha decay info"
                     >
                       <Info size={14} />
-                      <div className={`graph-info-bubble graph-info-bubble--inline graph-info-content ${showAlphaTip ? 'is-visible' : ''}`}>
-                        {/* <div className="graph-info-content"> */}
+                      <div className={`graph-info-bubble graph-info-bubble--inline ${showAlphaTip ? 'is-visible' : ''}`}>
+                        <div className="graph-info-content">
                           <div className="graph-info-title">Alpha decay</div>
                           <p>{alphaTip || 'Alpha decay: none'}</p>
-                        {/* </div> */}
+                        </div>
                       </div>
                     </span>
                   </div>
@@ -470,11 +470,11 @@ export const GraphViewer: React.FC<Props> = ({
                       aria-label="Epsilon decay info"
                     >
                       <Info size={14} />
-                      <div className={`graph-info-bubble graph-info-bubble--inline graph-info-content ${showEpsilonTip ? 'is-visible' : ''}`}>
-                        {/* <div className="graph-info-content"> */}
+                      <div className={`graph-info-bubble graph-info-bubble--inline ${showEpsilonTip ? 'is-visible' : ''}`}>
+                        <div className="graph-info-content">
                           <div className="graph-info-title">Epsilon decay</div>
                           <p>{epsilonTip || 'Epsilon decay: none'}</p>
-                        {/* </div> */}
+                        </div>
                       </div>
                     </span>
                   </div>
