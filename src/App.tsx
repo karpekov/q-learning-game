@@ -203,10 +203,18 @@ function App() {
   }, [currentEpisode, stepIdx]);
 
   const rewardTrend = useMemo(() => {
-    if (mode !== 'playback' || !expData?.episodes?.length) return [] as { index: number; value: number }[];
+    if (mode !== 'playback' || !expData?.episodes?.length) {
+      return [] as { index: number; value: number; alpha?: number; epsilon?: number }[];
+    }
     return expData.episodes.map((episode, idx) => ({
       index: idx,
       value: typeof episode.total_reward === 'number' ? episode.total_reward : 0,
+      alpha: typeof episode.alpha === 'number'
+        ? episode.alpha
+        : (typeof expData.agent?.alpha === 'number' ? expData.agent.alpha : undefined),
+      epsilon: typeof episode.epsilon === 'number'
+        ? episode.epsilon
+        : (typeof expData.agent?.epsilon === 'number' ? expData.agent.epsilon : undefined),
     }));
   }, [mode, expData]);
 

@@ -120,7 +120,7 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
       </div>
       <div className="reward-chart__body">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 12, right: 40, left: 0, bottom: 12 }}>
+          <LineChart data={data} margin={{ top: 12, right: 20, left: 20, bottom: 12 }}>
             <defs>
               <linearGradient id="rewardArea" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={`hsla(${areaTop.hue} ${areaTop.saturation}% ${areaTop.lightness}%, 0.28)`} />
@@ -147,6 +147,7 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               tickMargin={8}
               fontSize={12}
               domain={[domainMin, domainMax]}
+              label={{ value: 'Reward', angle: -90, position: 'left', offset: 12, fill: '#6c757d', fontSize: 11 }}
             />
             {(hasAlpha || hasEpsilon) && (
               <YAxis
@@ -204,6 +205,19 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
             )}
           </LineChart>
         </ResponsiveContainer>
+      </div>
+      <div className="reward-chart__description">
+        <p>Q-learning is an agent learning by trial and error. It starts with a blank Q-table (its memory of how good actions are), takes an action, observes the reward and the next state, and then adjusts its belief about that action. It achieves this by evaluating the utility of each action. In our simulations, the agent can perform any 4 actions (up, down, left, right) at any state. Whenever it performs an action, it evaluates the action by calculating its <i>q-value</i>. The Q-learning agent calculates a state-action pair's q-value using the Bellman formula <code>Q(s, a) ← Q(s, a) + α · [r + γ · max Q(s’, a’) – Q(s, a)]</code>.</p>
+        <p>
+          <ol>
+            <li><code>Alpha (α)</code> is the learning rate: a high α learns fast from every experience but may overreact to noise. A low α is calmer and steadier, essentially telling the agent to trust its prior knowledge more and new information less, leading to more gradual learning.</li>
+            <li><code>Gamma (γ)</code> is the discount factor: values near 1 say “future rewards matter almost as much as now,” while smaller γ makes the agent short-sighted and focused on quick wins.</li>
+            <li><code>Epsilon (ε)</code> controls exploration in an ε-greedy policy: with probability <i>p = ε</i>, pick a random action to discover new options or with <i>p = 1-ε</i>, choose the best action you currently know. Epsilon decay slowly turns an <i>explorer</i> into an <i>exploiter</i> as training progresses. Alpha decay similarly tapers how aggressively you update once your estimates are more mature.</li>
+            <li><code>Step cost</code> is a small negative reward per move. It pushes the agent to finish in fewer steps instead of wandering.</li>
+            <li><code>Stochasticity</code> describes how often the environment perturbs your chosen action (a slip or misfire), so the agent must find strategies that still work under randomness. Notice how the agent becomes more averse to 'riskier' routes when there is higher stochasticity even if it takes longer or is less direct?</li>
+          </ol>
+        </p>
+        <p>Think of a delivery driver learning a city. The state is where you are; an action is which street to take next. The reward mixes tips with fuel and time costs; reaching the customer is a big positive terminal reward, while a traffic jam or dead end is a negative terminal. Alpha is how aggressively you revise your mental map after each trip. Gamma is how much you care about the rest of your shift versus this block. Epsilon is how often you try a new shortcut instead of the usual route. Step cost is the clock ticking while you drive. Stochasticity is the unexpected detour or light that forces a different turn. Over many deliveries, your “Q-table” becomes a map of which turns or actions tend to pay off, and as epsilon decays you increasingly follow those best-known routes.</p>
       </div>
     </div>
   );
