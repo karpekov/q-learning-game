@@ -1,0 +1,44 @@
+
+.agent-checkbox-input {
+  margin-left: 4px;
+}
+
+.agent-checkbox-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-info-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #212529;
+}
+
+.agent-info-tip {
+  position: absolute;
+  bottom: 120%;
+  left: 50%;
+  transform: translate(-6px, 6px) scale(0.92);
+  transform-origin: bottom left;
+  opacity: 0;
+  pointer-events: none;
+  background-color: rgba(33, 37, 41, 0.6);
+  color: #f8f9fa;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.3;
+  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
+  transition: opacity 160ms ease, transform 200ms ease;
+  white-space: nowrap;
+  z-index: 80;
+  backdrop-filter: blur(4px);
+}
+
+.agent-info-tip.is-visible {
+  opacity: 1;
+  transform: translate(-6px, 0px) scale(1);
+}
