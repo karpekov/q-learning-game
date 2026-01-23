@@ -60,44 +60,260 @@ def build_transition_model(adj, terminal_rewards, stochasticity=1):
     return model
 
 class RoomEnvironment:
-    def __init__(self, adj, terminal_rewards, step_cost=-0.05, stochasticity=1):
+    def __init__(self, adj, terminal_rewards, step_cost=-0.05, stochasticity=1, portal_info=None, intermediate_rewards=None):
         self.adj = adj
         self.terminal_rewards = terminal_rewards
         self.stochasticity = stochasticity
         self.transition_model = build_transition_model(adj, terminal_rewards, stochasticity)
         self.step_cost = step_cost
+
+        # Intermediate rewards support - these can be collected and disappear
+        self.intermediate_rewards = intermediate_rewards or {}  # state -> reward_value
+        self.collected_rewards = set()  # Track which intermediate rewards have been collected
+
+        # Portal support
+        self.portal_info = portal_info or {}  # portal_id -> {destination, wall_bangs_required, location}
+        self.portal_wall_bangs = defaultdict(int)  # portal_id -> current_bangs
+
+        # Build portal connections from portal_info
+        self.portal_connections = {}  # state -> portal_destination_state
+        if portal_info:
+            for portal_id, info in portal_info.items():
+                # Find the destination state key
+                dest_pos = info['destination']
+                # Find which state corresponds to this position
+                dest_state = None
+                for state_key, state_neighbors in adj.items():
+                    if state_key == "S":
+                        continue  # Skip start state
+                    if len(state_key) == 1 and state_key.islower() and state_key.isalpha():
+                        # Check portal location
+                        portal_loc = portal_info.get(state_key, {}).get('location')
+                        if portal_loc == dest_pos:
+                            dest_state = state_key
+                            break
+                    elif state_key.startswith("(") and state_key.endswith(")"):
+                        # Parse coordinate state like "(3,9)"
+                        try:
+                            coord_str = state_key[1:-1]  # Remove parentheses
+                            r, c = map(int, coord_str.split(','))
+                            if (r, c) == dest_pos:
+                                dest_state = state_key
+                                break
+                        except:
+                            continue
+                    elif state_key == "GOAL":
+                        # Check if goal is at destination position (unlikely but possible)
+                        continue
+
+                if dest_state:
+                    self.portal_connections[portal_id] = dest_state
+
+        # Calculate grid bounds from portal locations and coordinate states
+        self.grid_bounds = self._calculate_grid_bounds()
+
         self.reset()
+
+    def _calculate_grid_bounds(self):
+        """Calculate grid bounds from portal locations and coordinate states"""
+        max_row, max_col = 0, 0
+
+        # Check portal locations
+        for portal_info in self.portal_info.values():
+            if 'location' in portal_info:
+                row, col = portal_info['location']
+                max_row = max(max_row, row)
+                max_col = max(max_col, col)
+
+        # Check coordinate states like "(3,5)"
+        for state_key in self.adj.keys():
+            if state_key.startswith("(") and state_key.endswith(")"):
+                try:
+                    coord_str = state_key[1:-1]  # Remove parentheses
+                    row, col = map(int, coord_str.split(','))
+                    max_row = max(max_row, row)
+                    max_col = max(max_col, col)
+                except (ValueError, IndexError):
+                    continue
+
+        # Grid bounds are max + 1 (since we use 0-based indexing)
+        return (max_row + 1, max_col + 1)
 
     def reset(self):
         # Start at state S
         self.current_state = "S"
+        # Reset portal wall bang counters
+        self.portal_wall_bangs.clear()
+        # Reset collected intermediate rewards
+        self.collected_rewards.clear()
         return self.current_state
 
     def get_available_actions(self, state):
         if state in self.terminal_rewards:
             return []
+        # For portals, add one extra action for the wall-bang direction
+        if len(state) == 1 and state.islower() and state.isalpha() and state in self.portal_info:
+            return list(range(len(self.adj[state]) + 1))  # Add 1 wall-bang action
         return list(range(len(self.adj[state])))
+
+    def _is_wall_bang(self, current_state, intended_next_state, actual_next_state):
+        """Check if the agent banged against a wall (intended != actual)"""
+        return intended_next_state != actual_next_state
+
+    def _handle_portal_activation(self, state):
+        """Check if agent is on a portal and if it should activate"""
+        if state in self.portal_connections:
+            portal_id = state  # Assuming portal states are named like "P1", "P2", etc.
+            if portal_id.startswith("P"):
+                required_bangs = self.portal_info.get(portal_id, {}).get('wall_bangs_required', 1)
+                current_bangs = self.portal_wall_bangs[portal_id]
+
+                if current_bangs >= required_bangs:
+                    # Portal activates! Reset counter and teleport
+                    self.portal_wall_bangs[portal_id] = 0
+                    destination = self.portal_connections[state]
+                    return destination
+        return state
 
     def step(self, action):
         if self.current_state in self.terminal_rewards:
             return self.current_state, 0, True, {}
 
+        # Check if this is a wall-bang action for a portal
+        if (len(self.current_state) == 1 and self.current_state.islower() and self.current_state.isalpha() and
+            self.current_state in self.portal_info and
+            action >= len(self.adj[self.current_state])):
+            # This is the wall-bang action
+            return self._handle_wall_bang_action()
+
+        # Regular movement
+        intended_next_state = self.adj[self.current_state][action]
+
         # Sample from transition distribution
         transitions = self.transition_model[self.current_state][action]
         probs = [p for p, _ in transitions]
         next_states = [s for _, s in transitions]
-        next_state = random.choices(next_states, weights=probs)[0]
+        actual_next_state = random.choices(next_states, weights=probs)[0]
+
+        # Check for wall bangs due to stochasticity
+        wall_bang = self._is_wall_bang(self.current_state, intended_next_state, actual_next_state)
 
         # Calculate reward
-        reward = self.step_cost + self.terminal_rewards.get(next_state, 0.0)
+        reward = self.step_cost + self.terminal_rewards.get(actual_next_state, 0.0)
+
+        # Check for intermediate reward collection
+        if actual_next_state in self.intermediate_rewards and actual_next_state not in self.collected_rewards:
+            reward += self.intermediate_rewards[actual_next_state]
+            self.collected_rewards.add(actual_next_state)
 
         # Update current state
-        self.current_state = next_state
+        self.current_state = actual_next_state
 
-        # Check if terminal
-        done = next_state in self.terminal_rewards
+        # Check if terminal (only terminal_rewards end the game, not intermediate_rewards)
+        done = actual_next_state in self.terminal_rewards
 
-        return next_state, reward, done, {}
+        return actual_next_state, reward, done, {
+            'intended_state': intended_next_state,
+            'actual_state': actual_next_state,
+            'portal_teleport': False,
+            'wall_bang': wall_bang
+        }
+
+    def _is_valid_wall_bang_direction(self, portal_id):
+        """Check if the wall-bang direction for a portal leads to a wall or boundary"""
+        if portal_id not in self.portal_info:
+            return False
+
+        direction = self.portal_info[portal_id]['wall_bang_direction']
+        portal_location = self.portal_info[portal_id]['location']
+        row, col = portal_location
+
+        # Calculate the target position based on direction
+        direction_deltas = {
+            "up": (-1, 0),
+            "down": (1, 0),
+            "left": (0, -1),
+            "right": (0, 1)
+        }
+
+        if direction not in direction_deltas:
+            return False
+
+        dr, dc = direction_deltas[direction]
+        target_row, target_col = row + dr, col + dc
+
+        # Check if target is out of bounds (grid boundary = wall)
+        if hasattr(self, 'grid_bounds'):
+            max_row, max_col = self.grid_bounds
+            if target_row < 0 or target_row >= max_row or target_col < 0 or target_col >= max_col:
+                return True  # Out of bounds = valid wall
+
+        # Check if target position corresponds to any state in adjacency list
+        # If portal can't move in this direction, it's a wall
+        target_state_key = f"({target_row},{target_col})"
+
+        # Check if this direction is blocked (not in adjacency list)
+        current_neighbors = self.adj.get(portal_id, [])
+
+        # Find the state key that corresponds to this direction
+        for neighbor in current_neighbors:
+            if neighbor == target_state_key:
+                return False  # Valid neighbor = not a wall
+
+        # If we can't find a valid neighbor in this direction, it's a wall
+        return True
+
+    def _handle_wall_bang_action(self):
+        """Handle a deliberate wall-bang action at a portal"""
+        portal_id = self.current_state
+
+        # Validate that the wall-bang direction actually leads to a wall or boundary
+        if not self._is_valid_wall_bang_direction(portal_id):
+            # Invalid direction - treat as regular failed movement
+            reward = self.step_cost
+            return self.current_state, reward, False, {
+                'intended_state': f'WALL_BANG_{self.portal_info[portal_id]["wall_bang_direction"].upper()}',
+                'actual_state': self.current_state,
+                'portal_teleport': False,
+                'wall_bang': False,
+                'error': 'Invalid wall-bang direction'
+            }
+
+        self.portal_wall_bangs[portal_id] += 1
+
+        # Check if portal should activate
+        required_bangs = self.portal_info[portal_id]['wall_bangs_required']
+        if self.portal_wall_bangs[portal_id] >= required_bangs:
+            # Portal activates! Teleport to destination
+            destination = self.portal_connections.get(portal_id)
+            if destination:
+                self.portal_wall_bangs[portal_id] = 0  # Reset counter
+                self.current_state = destination
+                reward = self.step_cost + self.terminal_rewards.get(destination, 0.0)
+
+                # Check for intermediate reward collection at destination
+                if destination in self.intermediate_rewards and destination not in self.collected_rewards:
+                    reward += self.intermediate_rewards[destination]
+                    self.collected_rewards.add(destination)
+
+                done = destination in self.terminal_rewards
+
+                return destination, reward, done, {
+                    'intended_state': f'WALL_BANG_{self.portal_info[portal_id]["wall_bang_direction"].upper()}',
+                    'actual_state': destination,
+                    'portal_teleport': True,
+                    'wall_bang': True
+                }
+
+        # Portal doesn't activate yet - stay at portal
+        reward = self.step_cost
+        return self.current_state, reward, False, {
+            'intended_state': f'WALL_BANG_{self.portal_info[portal_id]["wall_bang_direction"].upper()}',
+            'actual_state': self.current_state,
+            'portal_teleport': False,
+            'wall_bang': True
+        }
+
 
 class QLearningAgent:
     def __init__(self, env, adj, epsilon=0.1, alpha=0.1, gamma=0.9, epsilon_decay=0.995, epsilon_min=0.01, alpha_decay_rate=0.0, optimistic_init=0.0, store_episode_details_every=100):
@@ -352,7 +568,7 @@ def create_static_visualization(data_file, output_dir, room_coords=None, graph_t
 
     # Get room coordinates if not provided
     if room_coords is None:
-        _, _, room_coords = get_graph()
+        _, _, room_coords, _, _ = get_graph()
 
     # Create output directory organized by graph type (unless skip_graph_subfolder is True for experiments)
     if skip_graph_subfolder:
@@ -884,9 +1100,9 @@ def run_experiments(graph_type="custom_rooms"):
             exp_dir = os.path.join(stoch_dir, f"exp_{i+1}_c{config['step_cost']}_s{config['stochasticity']}_g{config['gamma']}_e{config['epsilon']}_ed{config['epsilon_decay']}_em{config['epsilon_min']}_a{config['alpha']}_ad{config['alpha_decay_rate']}_qi{config['optimistic_init']}")
             os.makedirs(exp_dir, exist_ok=True)
 
-            adj, terminal_rewards, room_coords = get_graph(graph_type)
+            adj, terminal_rewards, room_coords, portal_info, intermediate_rewards = get_graph(graph_type)
             env = RoomEnvironment(adj, terminal_rewards, step_cost=config['step_cost'],
-                                 stochasticity=config['stochasticity'])
+                                 stochasticity=config['stochasticity'], portal_info=portal_info, intermediate_rewards=intermediate_rewards)
             agent = QLearningAgent(
                 env, adj,
                 epsilon=config['epsilon'],
@@ -1002,8 +1218,8 @@ def main():
         return
 
     # Create environment and agent
-    adj, terminal_rewards, room_coords = get_graph(args.graph_type)
-    env = RoomEnvironment(adj, terminal_rewards, step_cost=args.cost, stochasticity=args.stochasticity)
+    adj, terminal_rewards, room_coords, portal_info, intermediate_rewards = get_graph(args.graph_type)
+    env = RoomEnvironment(adj, terminal_rewards, step_cost=args.cost, stochasticity=args.stochasticity, portal_info=portal_info, intermediate_rewards=intermediate_rewards)
     agent = QLearningAgent(env, adj, epsilon=args.epsilon, alpha=args.alpha, gamma=args.gamma,
                           epsilon_decay=args.epsilon_decay, epsilon_min=args.epsilon_min,
                           alpha_decay_rate=args.alpha_decay_rate, optimistic_init=args.optimistic_init)
@@ -1035,8 +1251,8 @@ def main():
 
 def run_q_learning_experiment_in_debug_mode(graph_type="custom_rooms"):
     """Run a single Q-learning experiment in debug mode"""
-    adj, terminal_rewards, room_coords = get_graph(graph_type)
-    env = RoomEnvironment(adj, terminal_rewards, step_cost=0, stochasticity=0)
+    adj, terminal_rewards, room_coords, portal_info, intermediate_rewards = get_graph(graph_type)
+    env = RoomEnvironment(adj, terminal_rewards, step_cost=0, stochasticity=0, portal_info=portal_info, intermediate_rewards=intermediate_rewards)
     agent = QLearningAgent(env, adj, epsilon=0.3, alpha=0.1, gamma=0.9)
     agent.train(num_episodes=10)
     display_policy(agent, adj, terminal_rewards)

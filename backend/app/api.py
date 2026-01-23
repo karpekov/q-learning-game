@@ -183,7 +183,7 @@ def health() -> dict:
 def list_graphs():
     result: List[GraphInfo] = []
     for key in AVAILABLE_GRAPHS:
-        adj, terminals, _coords = get_graph(key)
+        adj, terminals, _coords, _, _ = get_graph(key)
         result.append(GraphInfo(key=key, states=len(adj), terminals=list(terminals.keys())))
     return result
 
@@ -191,10 +191,10 @@ def list_graphs():
 @app.get("/graphs/{graph_type}", tags=["graphs"])
 def get_graph_def(graph_type: str):
     try:
-        adj, terminals, coords = get_graph(graph_type)
+        adj, terminals, coords, portal_info, intermediate_rewards = get_graph(graph_type)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return {"graph_type": graph_type, "adjacency": adj, "terminal_rewards": terminals, "coords": coords}
+    return {"graph_type": graph_type, "adjacency": adj, "terminal_rewards": terminals, "coords": coords, "portal_info": portal_info, "intermediate_rewards": intermediate_rewards}
 
 
 @app.get("/experiments", tags=["experiments"])
