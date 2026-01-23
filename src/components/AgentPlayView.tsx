@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Info } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Coord } from '../types';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { Checkbox } from './modules/Checkbox';
 import './AgentPlayView.css';
 
 type Props = {
   coords: Record<string, Coord>;
   adjacency: Record<string, string[]>;
   terminalRewards: Record<string, number>;
+  alpha?: number;
+  gamma?: number;
+  onQValueCalculated?: (data: { from: string; to: string; qValue: number }) => void;
   width?: number;
   height?: number;
 };
@@ -36,6 +39,9 @@ export const AgentPlayView: React.FC<Props> = ({
   coords,
   adjacency,
   terminalRewards,
+  alpha = 0.1,
+  gamma = 0.9,
+  onQValueCalculated,
   width = 960,
   height = 640,
 }) => {
@@ -54,9 +60,30 @@ export const AgentPlayView: React.FC<Props> = ({
   const [ended, setEnded] = useState<boolean>(false);
   const [episodes, setEpisodes] = useState<number[]>([]); // rewards per finished round
   const [easyMode, setEasyMode] = useState<boolean>(false);
+  const [hardMode, setHardMode] = useState<boolean>(false);
+  const [showQValues, setShowQValues] = useState<boolean>(true);
   const [stepCost, setStepCost] = useState<number>(0); // cost per move
   const [stochasticity, setStochasticity] = useState<number>(0); // 0..1 chance to deviate
-  const [showInfoTip, setShowInfoTip] = useState<boolean>(false);
+  const qValuesRef = useRef<Record<string, Record<string, number>>>({});
+  const qHistoryRef = useRef<{ from: string; to: string; prev: number | undefined }[]>([]);
+  const qCalcRef = useRef<Record<string, { prev: number; reward: number; bestNext: number; updated: number; alpha: number; gamma: number }>>({});
+  const [qVersion, setQVersion] = useState<number>(0); // bump to re-render Q labels
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    node: string;
+    x: number;
+    y: number;
+    entries: {
+      to: string;
+      value: number;
+      prev: number;
+      reward: number;
+      bestNext: number;
+      updated: number;
+      alpha: number;
+      gamma: number;
+    }[];
+  } | null>(null);
 
   const latestReward = episodes.length ? episodes[episodes.length - 1] : null;
   const bestReward = episodes.length ? Math.max(...episodes) : null;
@@ -67,11 +94,19 @@ export const AgentPlayView: React.FC<Props> = ({
     if (easyMode) {
       return new Set<string>(Object.keys(coords));
     }
+
+    if (hardMode) {
+      const set = new Set<string>(visited);
+      if (current) set.add(current);
+      neighbors.forEach((n) => set.add(n));
+      return set;
+    }
+
     const set = new Set<string>(everVisited);
     if (current) set.add(current);
     neighbors.forEach((n) => set.add(n));
     return set;
-  }, [everVisited, current, neighbors, easyMode, coords]);
+  }, [everVisited, current, neighbors, easyMode, coords, hardMode, visited, adjacency]);
 
   const pathSegments = useMemo(() => {
     const segments: { key: string; from: Coord; to: Coord }[] = [];
@@ -131,14 +166,70 @@ export const AgentPlayView: React.FC<Props> = ({
     return intended;
   }
 
+  function qValueColor(value: number): string {
+    if (!Number.isFinite(value)) return '#495057';
+    const scaled = Math.max(-1, Math.min(1, value / 400));
+    const signHue = scaled >= 0 ? 140 : 5; // green-ish vs red-ish
+    const magnitude = Math.abs(scaled);
+    const saturation = 65 + magnitude * 35; // 55%..90%
+    const lightness = 58 - magnitude * 28; // 58%..30%
+    return `hsl(${signHue} ${saturation}% ${lightness}%)`;
+  }
+
+  function calculateQValue(from: string, to: string): { updated: number; previous: number | undefined; bestNext: number; reward: number } {
+    const currentStateValues = qValuesRef.current[from] || {};
+    const nextStateValues = qValuesRef.current[to] || {};
+    const immediateReward = (terminalRewards[to] ?? 0) - stepCost;
+    const futureNeighbors = adjacency[to] || [];
+    const bestNext = futureNeighbors.reduce((best, neighbor) => {
+      const candidate = nextStateValues[neighbor] ?? 0;
+      return candidate > best ? candidate : best;
+    }, 0);
+    const currentQ = currentStateValues[to];
+    const currentQSafe = currentQ ?? 0;
+    const updatedQ = currentQSafe + alpha * (immediateReward + gamma * bestNext - currentQSafe);
+
+    qValuesRef.current = {
+      ...qValuesRef.current,
+      [from]: { ...currentStateValues, [to]: updatedQ },
+    };
+    qCalcRef.current = {
+      ...qCalcRef.current,
+      [`${from}->${to}`]: {
+        prev: currentQSafe,
+        reward: immediateReward,
+        bestNext,
+        updated: updatedQ,
+        alpha,
+        gamma,
+      },
+    };
+    setQVersion((v) => v + 1);
+
+    return { updated: updatedQ, previous: currentQ, bestNext, reward: immediateReward };
+  }
+
   function moveTo(intended: string) {
     if (ended) return; // round is over
     if (!neighbors.includes(intended)) return; // restrict to valid moves
+    setTooltip(null);
+
     const actual = pickStochasticNeighbor(intended);
+    const fromState = current;
     setCurrent(actual);
     setVisited((prev) => new Set<string>(prev).add(actual));
     setEverVisited((prev) => new Set<string>(prev).add(actual));
     setPath((prev) => [...prev, actual]);
+
+    // calculate Q-value update
+    if (fromState) {
+      const qValue = calculateQValue(fromState, actual);
+      qHistoryRef.current.push({ from: fromState, to: actual, prev: qValue.previous });
+      if (onQValueCalculated) {
+        onQValueCalculated({ from: fromState, to: actual, qValue: qValue.updated });
+      }
+    }
+
     if (actual in terminalRewards) {
       const reward = terminalRewards[actual];
       // Moves including this new move equals current path length
@@ -156,16 +247,8 @@ export const AgentPlayView: React.FC<Props> = ({
     setEverVisited((prev) => new Set(prev).add(s));
     setPath([s]);
     setEnded(false);
-  }
-
-  function undo() {
-    if (path.length <= 1) return;
-    const newPath = path.slice(0, -1);
-    const newCurrent = newPath[newPath.length - 1];
-    setCurrent(newCurrent);
-    setPath(newPath);
-    // Recompute visited from path
-    setVisited(new Set(newPath));
+    qHistoryRef.current = [];
+    setTooltip(null);
   }
 
   // Reset play state whenever the graph changes
@@ -173,6 +256,11 @@ export const AgentPlayView: React.FC<Props> = ({
     reset();
     setEverVisited(new Set([defaultStart(coords)]));
     setEpisodes([]);
+    qValuesRef.current = {};
+    qHistoryRef.current = [];
+    qCalcRef.current = {};
+    setTooltip(null);
+    setQVersion((v) => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords, adjacency]);
 
@@ -249,15 +337,114 @@ export const AgentPlayView: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [current, neighbors, coords, ended]);
 
+  const qValueLabels = useMemo(() => {
+    const labels: {
+      key: string;
+      x: number;
+      y: number;
+      label: string;
+      color: string;
+    }[] = [];
+
+    const formatQValue = (value: number): string => {
+      const abs = Math.abs(value);
+      if (abs >= 1000) return value.toFixed(0);
+      if (abs >= 100) return value.toFixed(1);
+      return value.toFixed(2);
+    };
+
+    for (const [from, values] of Object.entries(qValuesRef.current)) {
+      const fromCoord = coords[from];
+      if (!fromCoord) continue;
+      const neighbors = adjacency[from] || [];
+
+      neighbors.forEach((to, idx) => {
+        const value = values[to];
+        if (value == null) return;
+
+        const toCoord = coords[to];
+        if (!toCoord) return;
+        const [sx, sy] = fromCoord;
+        const [tx, ty] = toCoord;
+        const dx = tx - sx;
+        const dy = ty - sy;
+        const length = Math.hypot(dx, dy) || 1;
+
+        const along = Math.min(0.36, Math.max(0.2, 0.22 + idx * 0.05));
+        const baseX = sx + dx * along;
+        const baseY = sy + dy * along;
+        const perpX = (-dy / length) * 0.18;
+        const perpY = (dx / length) * 0.18;
+        const direction = idx % 2 === 0 ? 1 : -1;
+
+        labels.push({
+          key: `${from}->${to}-${idx}`,
+          x: baseX + perpX * direction,
+          y: baseY + perpY * direction,
+          label: formatQValue(value),
+          color: qValueColor(value),
+        });
+      });
+    }
+    return labels;
+  }, [coords, adjacency, qVersion]);
+
+  const showNodeTooltip = useCallback(
+    (state: string, event: React.MouseEvent<SVGGElement, MouseEvent>) => {
+      const entries = (adjacency[state] || [])
+        .map((to) => {
+          const value = qValuesRef.current[state]?.[to];
+          if (value == null) return null;
+          const calc = qCalcRef.current[`${state}->${to}`];
+          return {
+            to,
+            value,
+            prev: calc?.prev ?? value,
+            reward: calc?.reward ?? (terminalRewards[to] ?? 0) - stepCost,
+            bestNext: calc?.bestNext ?? 0,
+            updated: calc?.updated ?? value,
+            alpha: calc?.alpha ?? alpha,
+            gamma: calc?.gamma ?? gamma,
+          };
+        })
+        .filter((entry): entry is {
+          to: string;
+          value: number;
+          prev: number;
+          reward: number;
+          bestNext: number;
+          updated: number;
+          alpha: number;
+          gamma: number;
+        } => entry !== null);
+
+      if (!entries.length) {
+        setTooltip(null);
+        return;
+      }
+
+      const rect = containerRef.current?.getBoundingClientRect();
+      const x = rect ? event.clientX - rect.left : event.clientX;
+      const y = rect ? event.clientY - rect.top : event.clientY;
+
+      setTooltip({
+        node: state,
+        x,
+        y,
+        entries,
+      });
+    },
+    [adjacency, alpha, gamma, stepCost, terminalRewards]
+  );
+
   return (
-    <div className="agent-play-root">
+    <div className="agent-play-root" ref={containerRef}>
       <TransformWrapper
         initialScale={1}
         minScale={0.5}
         maxScale={3}
         wheel={{ step: 0.1 }}
         doubleClick={{ disabled: true }}
-        panning={{ velocity: 0.2, limitToBounds: false }}
       >
         {({ zoomIn, zoomOut, resetTransform }) => (
           <>
@@ -268,14 +455,6 @@ export const AgentPlayView: React.FC<Props> = ({
                 ) : (
                   <button onClick={reset} className="agent-control-btn agent-control-btn--danger">Reset</button>
                 )}
-                <button
-                  onClick={undo}
-                  disabled={ended}
-                  title={ended ? 'Round finished' : undefined}
-                  className="agent-control-btn"
-                >
-                  Undo Move
-                </button>
               </div>
               <div className="agent-controls-row">
                 <div><strong>Current:</strong> {current}</div>
@@ -307,26 +486,24 @@ export const AgentPlayView: React.FC<Props> = ({
                   <span className="agent-range-value">{Math.round(stochasticity * 100)}%</span>
                 </label>
               </div>
-              <div className="agent-checkbox-row">
-                <div
-                  className="agent-info-trigger"
-                  onMouseEnter={() => setShowInfoTip(true)}
-                  onMouseLeave={() => setShowInfoTip(false)}
-                >
-                  <Info size={14} />
-                  <div className={`agent-info-tip ${showInfoTip ? 'is-visible' : ''}`}>
-                    Spoilers! Enabling Easy Mode will reveal the whole world.
-                  </div>
-                </div>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={easyMode}
-                    onChange={(e) => setEasyMode(e.target.checked)}
-                    className="agent-checkbox-input"
-                  />
-                  Easy Mode 
-                </label>
+              <div>
+              <Checkbox
+                label="Easy Mode"
+                tip="Spoilers! Enabling Easy Mode will reveal the whole world."
+                checked={easyMode}
+                onCheckedChange={setEasyMode}
+              />
+              <Checkbox
+                label="Hard Mode"
+                tip="Play as if you were an agent!"
+                checked={hardMode}
+                onCheckedChange={setHardMode}
+              />
+              <Checkbox
+                label="Show Q-Values"
+                checked={showQValues}
+                onCheckedChange={setShowQValues}
+              />
               </div>
               <div className="agent-zoom-controls">
                 <button onClick={() => zoomOut()} className="agent-control-btn" title="Zoom out">-</button>
@@ -421,18 +598,42 @@ export const AgentPlayView: React.FC<Props> = ({
                     const d = r * Math.SQRT1_2; // half-diagonal to draw X crosshair
                     const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
                     return (
-                      <g key={state} className={nodeClass} onClick={() => isNeighbor && !ended && moveTo(state)}>
+                      <g
+                        key={state}
+                        className={nodeClass}
+                        onClick={() => isNeighbor && !ended && moveTo(state)}
+                        onMouseEnter={(e) => showNodeTooltip(state, e)}
+                        onMouseMove={(e) => showNodeTooltip(state, e)}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
                         <circle cx={x} cy={y} r={r} fill={fill} stroke="#343a40" strokeWidth={0.05} opacity={opacity} />
-                        {/* {!isTerminal && (
+                        {!isTerminal && everVisited.has(state) && (!hardMode || visited.has(state)) &&  (
                           <>
                             <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
                             <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#343a40" strokeWidth={0.04} opacity={opacity} />
                           </>
-                        )} */}
+                        )}
                       </g>
                     );
                   })}
                 </g>
+
+                {/* Q-value labels (drawn above nodes) */}
+                {qValueLabels.length > 0 && showQValues && (
+                  <g className="agent-q-labels">
+                    {qValueLabels.map((label) => (
+                      <text
+                        key={label.key}
+                        x={label.x}
+                        y={label.y}
+                        className="agent-q-label"
+                        fill={label.color}
+                      >
+                        {label.label}
+                      </text>
+                    ))}
+                  </g>
+                )}
               </svg>
             </TransformComponent>
 
@@ -464,6 +665,27 @@ export const AgentPlayView: React.FC<Props> = ({
           </>
         )}
       </TransformWrapper>
+
+      {tooltip && (
+        <div
+          className="graph-tooltip agent-q-tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          <div className="graph-tooltip-title">We moved from {tooltip.node} to...</div>
+              <div className="agent-q-tooltip-list">
+                {tooltip.entries.map((entry) => (
+                  <div key={`${tooltip.node}->${entry.to}`} className="agent-q-tooltip-entry">
+                    <div className="agent-q-tooltip-edge">{entry.to}:</div>
+                    <div className="agent-q-tooltip-formula">Q(s,a) ← Q(s,a) + α (r + γ·maxQ − Q(s,a))</div>
+                    <div className="agent-q-tooltip-values">
+                      Q(s,a) ← {`${entry.prev.toFixed(3)} + ${entry.alpha.toFixed(3)} * (${entry.reward.toFixed(3)} + ${entry.gamma.toFixed(3)} * ${entry.bestNext.toFixed(3)} - ${entry.prev.toFixed(3)})`}
+                    </div>
+                    <div className="agent-q-tooltip-values" >Q({tooltip.node},{tooltip.node} → {entry.to}) = <span className='agent-q-tooltip-result' style={{ color: qValueColor(entry.updated)}}>{entry.updated.toFixed(3)}</span></div>
+                  </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

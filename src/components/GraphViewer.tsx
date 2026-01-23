@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { Coord, ExperimentDataSummary, Episode } from '../types';
-import { Info } from 'lucide-react';
+import { Check, Info } from 'lucide-react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { Checkbox } from './modules/Checkbox';
 import './GraphViewer.css';
 
 type PlaybackStats = {
@@ -98,7 +99,6 @@ export const GraphViewer: React.FC<Props> = ({
   currentEpisodeIndex,
   currentStepIndex,
   playbackCompleted,
-  onEpisodeJump,
 }) => {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const { minX, maxX, minY, maxY } = computeBounds(coords);
@@ -440,7 +440,6 @@ export const GraphViewer: React.FC<Props> = ({
         maxScale={3}
         wheel={{ step: 0.1 }}
         doubleClick={{ disabled: true }}
-        panning={{ velocity: 0.2, limitToBounds: false }}
       >
         {({ zoomIn, zoomOut, resetTransform }) => (
               <>
@@ -497,7 +496,17 @@ export const GraphViewer: React.FC<Props> = ({
                   <p><strong>Reward:</strong> {playbackStats.totalReward != null ? playbackStats.totalReward.toFixed(2) : '-'}</p>
                 </div>
                 <div className="graph-stats-checks">
-                  <label className="graph-stats-checkbox">
+                  <Checkbox
+                    label="Show Final Policy"
+                    checked={showPolicy}
+                    onCheckedChange={setShowPolicy}
+                  />
+                  <Checkbox
+                    label="Show Q-values"
+                    checked={showQValues}
+                    onCheckedChange={setShowQValues}
+                  />
+                  {/* <label className="graph-stats-checkbox">
                     <input
                       type="checkbox"
                       checked={showPolicy}
@@ -514,7 +523,7 @@ export const GraphViewer: React.FC<Props> = ({
                       disabled={!qValues}
                     />{' '}
                     Show Q-values
-                  </label>
+                  </label> */}
                 </div>
                 <div className="graph-zoom-controls">
                   <button onClick={() => zoomOut()} className="graph-zoom-button" title="Zoom out">-</button>

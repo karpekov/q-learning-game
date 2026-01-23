@@ -58,6 +58,7 @@ def _resolve_experiments_root() -> str:
         os.environ.get("EXPERIMENTS_DIR"),
         os.path.join(os.getcwd(), "q_learning_experiments"),
         os.path.join(os.path.dirname(os.getcwd()), "q_learning_experiments"),
+        os.path.join(os.path.dirname(__file__), "..", "q_learning_experiments"),
         os.path.join(os.path.dirname(__file__), "..", "..", "q_learning_experiments"),
     ]
     for c in candidates:
