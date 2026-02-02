@@ -400,7 +400,7 @@ class QLearningAgent:
         store_details = (
             episode_num < 10 or  # First 10 episodes
             episode_num % self.store_episode_details_every == 0 or  # Every Nth episode
-            episode_num >= (total_episodes - 11)  # Last 10 episodes
+            episode_num >= (total_episodes - 10)  # Last 10 episodes
         )
 
         while step_count < max_steps:
