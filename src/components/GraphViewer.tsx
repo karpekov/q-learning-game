@@ -719,7 +719,7 @@ export const GraphViewer: React.FC<Props> = ({
                         onMouseMove={(event) => updateTooltip(state, event)}
                         onMouseLeave={() => setTooltip(null)}
                       >
-                        <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={0.05} />
+                        <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={isCurrent ? 0.1 : 0.05} />
                         {!isTerminal && (
                           <>
                             {quadrantBounds.map(({ key, start, end }) => {

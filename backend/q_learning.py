@@ -400,7 +400,7 @@ class QLearningAgent:
         store_details = (
             episode_num < 10 or  # First 10 episodes
             episode_num % self.store_episode_details_every == 0 or  # Every Nth episode
-            episode_num >= (total_episodes - 10)  # Last 10 episodes
+            episode_num >= (total_episodes - 11)  # Last 10 episodes
         )
 
         while step_count < max_steps:
@@ -410,12 +410,12 @@ class QLearningAgent:
                 break
 
             # Take action
-            next_state, reward, done, _ = self.env.step(action)
+            next_state, reward, done, info = self.env.step(action)
             total_reward += reward
 
             # Store transition for visualization only if we're storing details
             if store_details:
-                intended_direction = self.adj[state][action]
+                intended_direction = info.get("intended_state")
                 transition_data = {
                     "step": step_count,
                     "state": state,
@@ -505,7 +505,14 @@ class QLearningAgent:
             if best_action is None:
                 policy[state] = "-"
             else:
-                policy[state] = self.adj[state][best_action]  # Show intended direction
+                if best_action >= len(self.adj[state]):
+                    wall_dir = self.env.portal_info.get(state, {}).get("wall_bang_direction")
+                    if wall_dir:
+                        policy[state] = f"WALL_BANG_{wall_dir.upper()}"
+                    else:
+                        policy[state] = "WALL_BANG"
+                else:
+                    policy[state] = self.adj[state][best_action]  # Show intended direction
 
         return policy
 
