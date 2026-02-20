@@ -1,4 +1,3 @@
-
 .agent-checkbox-input {
   margin-left: 4px;
 }
@@ -15,6 +14,17 @@
   align-items: center;
   justify-content: center;
   color: #212529;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(225, 234, 205, 0.9);
+  border: 1px solid rgba(90, 106, 78, 0.22);
+  padding: 0;
+}
+
+.agent-info-trigger:focus-visible {
+  outline: 2px solid rgba(45, 95, 145, 0.85);
+  outline-offset: 2px;
 }
 
 .agent-info-tip {
@@ -25,17 +35,16 @@
   transform-origin: bottom left;
   opacity: 0;
   pointer-events: none;
-  background-color: rgba(33, 37, 41, 0.6);
+  background-color: rgba(33, 37, 41, 0.86);
   color: #f8f9fa;
   padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 13px;
   line-height: 1.3;
-  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
   transition: opacity 160ms ease, transform 200ms ease;
   white-space: nowrap;
   z-index: 80;
-  backdrop-filter: blur(4px);
 }
 
 .agent-info-tip.is-visible {

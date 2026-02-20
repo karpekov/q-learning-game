@@ -3,24 +3,45 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+  height: 100%;
 }
 
 .agent-controls-panel {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  bottom: 10px;
+  left: 10px;
   z-index: 50;
   display: flex;
   flex-direction: column;
-  flex-wrap: wrap;
-  gap: 20px;
+  gap: 10px;
   padding: 12px;
-  width: 360px;
-  border-radius: 8px;
-  background-color: rgba(234, 238, 224, 0.7);
-  box-shadow: 0 4px 4px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
-  font-size: 14px;
+  width: min(360px, calc(100% - 20px));
+  border-radius: 12px;
+  border: 1px solid rgba(90, 106, 78, 0.28);
+  background: rgba(242, 246, 233, 0.82);
+  box-shadow: 0 10px 24px rgba(21, 38, 10, 0.16);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+}
+
+.agent-controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-controls-section + .agent-controls-section {
+  border-top: 1px solid rgba(87, 106, 72, 0.18);
+  padding-top: 8px;
+}
+
+.agent-controls-section__title {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: #5b6755;
+  font-weight: 700;
 }
 
 .agent-controls-panel .agent-control-btn {
@@ -30,11 +51,11 @@
 }
 
 .agent-control-btn--success {
-  background-color: #a8e6cf;
+  background-color: #b7e7cf;
 }
 
 .agent-control-btn--danger {
-  background-color: #ffaaa7;
+  background-color: #f2bfbb;
 }
 
 .agent-control-btn[disabled] {
@@ -44,20 +65,15 @@
 
 .agent-controls-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .agent-controls-column {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  white-space: nowrap;
-  overflow: hidden;
 }
 
 .agent-zoom-controls {
@@ -70,28 +86,30 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+}
+
+.agent-range-label input {
+  width: 140px;
 }
 
 .agent-range-value {
-  min-width: 28px;
+  min-width: 34px;
   text-align: right;
 }
 
 .agent-play-field {
   display: block;
-  border-radius: 8px;
-  background: #f8f9fa;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 4%, #fbfcf8 0%, #f4f6ef 65%);
 }
 
-.agent-play-wrapper {
+.agent-play-wrapper,
+.agent-play-content {
   width: 100%;
   height: 100%;
 }
 
 .agent-play-content {
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,49 +125,50 @@
 
 .agent-stats {
   position: absolute;
-  top: 4px;
-  left: 4px;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 8px;
   align-items: center;
-  font-size: 14px;
+  font-size: 13px;
   z-index: 50;
-  color: #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #27321f;
+}
+
+.agent-stats > div {
+  border-radius: 999px;
+  border: 1px solid rgba(90, 106, 78, 0.22);
+  background: rgba(238, 243, 227, 0.88);
+  padding: 2px 8px;
+}
+
+.agent-stats__hint {
+  color: #4f5f46;
 }
 
 .agent-stats__completed {
   color: #f8f9fa;
-  background-color: rgba(33, 37, 41, 0.8);
-  border-radius: 8px;
-  padding: 2px 8px;
-  backdrop-filter: blur(4px);
-}
-
-.agent-stats__hint {
-  font-size: 14px;
-  color: #6c757d;
+  background-color: rgba(33, 37, 41, 0.82) !important;
 }
 
 .agent-stats__positive {
-  color: #a8e6cf;
-  font-weight: 600;
+  color: #8df0c4;
+  font-weight: 700;
 }
 
 .agent-stats__negative {
-  color: #ffaaa7;
-  font-weight: 600;
+  color: #ffccc8;
+  font-weight: 700;
 }
 
 .agent-q-labels .agent-q-label {
-  font-size: 0.26px;
-  stroke: #343a40;
-  stroke-width: 0.02px;
+  font-size: 0.24px;
+  stroke: #1f2a17;
+  stroke-width: 0.03px;
   paint-order: stroke;
-  font-weight: 600;
+  font-weight: 700;
   text-anchor: middle;
   pointer-events: none;
 }
@@ -178,17 +197,34 @@
   font-weight: 600;
 }
 
+.agent-q-tooltip-direction {
+  display: inline-block;
+  margin-right: 6px;
+}
+
 .agent-q-tooltip-formula {
   color: #ced4da;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .agent-q-tooltip-values {
-  /* font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; */
-  font-size: 14px;
+  font-size: 13px;
   color: #e9ecef;
 }
 
 .agent-q-tooltip-result {
   font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .agent-controls-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .agent-stats {
+    top: 8px;
+    gap: 6px;
+  }
 }

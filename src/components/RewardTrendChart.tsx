@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ValueType, NameType, Payload } from 'recharts/types/component/DefaultTooltipContent';
+import type { NameType, Payload, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import './RewardTrendChart.css';
 
 type Point = {
@@ -38,9 +38,7 @@ const RewardTooltip: React.FC<RewardTooltipProps> = ({ active, payload, label })
   }
   const typedPayload = payload as Payload<ValueType, NameType>[];
   const rewardEntry = typedPayload.find((entry) => entry && entry.dataKey === 'reward') ?? typedPayload[typedPayload.length - 1];
-  const rawValue = rewardEntry && typeof rewardEntry.value === 'number'
-    ? rewardEntry.value
-    : Number(rewardEntry?.value);
+  const rawValue = rewardEntry && typeof rewardEntry.value === 'number' ? rewardEntry.value : Number(rewardEntry?.value);
   const formatted = Number.isFinite(rawValue) ? rawValue.toFixed(2) : '-';
 
   const alphaEntry = typedPayload.find((entry) => entry && entry.dataKey === 'alpha');
@@ -51,14 +49,16 @@ const RewardTooltip: React.FC<RewardTooltipProps> = ({ active, payload, label })
   return (
     <div className="reward-tooltip">
       <div className="reward-tooltip__title">Episode {label ?? '-'}</div>
-      <div className="reward-tooltip__value">Reward : {formatted}</div>
-      {formattedEpsilon && <div className="reward-tooltip__value">ε : {formattedEpsilon}</div>}
-      {formattedAlpha && <div className="reward-tooltip__value">α : {formattedAlpha}</div>}
+      <div className="reward-tooltip__value">Reward: {formatted}</div>
+      {formattedEpsilon && <div className="reward-tooltip__value">ε: {formattedEpsilon}</div>}
+      {formattedAlpha && <div className="reward-tooltip__value">α: {formattedAlpha}</div>}
     </div>
   );
 };
 
 const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
+  const [showDetails, setShowDetails] = useState(false);
+
   if (!points.length || width <= 0) return null;
 
   const data = points.map((p) => ({
@@ -104,20 +104,20 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
     <div className="reward-chart" style={{ width }}>
       <div className="reward-chart__header">
         <strong className="reward-chart__title">Reward Trend</strong>
-        <span className="reward-chart__meta">
-          Episodes: {data.length} · Reward Range: {min.toFixed(2)} - {max.toFixed(2)}
-          {legendItems.length > 0 && (
-            <div className="reward-chart__legend">
-              {legendItems.map((item) => (
-                <span key={item.key} className="reward-chart__legend-item">
-                  <span className="reward-chart__legend-swatch" style={{ backgroundColor: item.color }} />
-                  {item.label}
-                </span>
-              ))}
-            </div>
-          )}
-        </span>
+        <span className="reward-chart__meta">Episodes: {data.length} · Range: {min.toFixed(2)} to {max.toFixed(2)}</span>
       </div>
+
+      {legendItems.length > 0 && (
+        <div className="reward-chart__legend">
+          {legendItems.map((item) => (
+            <span key={item.key} className="reward-chart__legend-item">
+              <span className="reward-chart__legend-swatch" style={{ backgroundColor: item.color }} />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="reward-chart__body">
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 12, right: 20, left: 20, bottom: 12 }}>
@@ -133,13 +133,7 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(33,37,41,0.08)" vertical={false} />
-            <XAxis
-              dataKey="episode"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              fontSize={12}
-            />
+            <XAxis dataKey="episode" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
             <YAxis
               yAxisId="reward"
               tickLine={false}
@@ -161,7 +155,7 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
                 ticks={[0, 0.25, 0.5, 0.75, 1]}
                 tickFormatter={(v) => v.toFixed(2)}
                 stroke="#adb5bd"
-                label={{ value: 'α / ε (0-1)', angle: 90, position: 'right', offset: 12, fill: '#6c757d', fontSize: 11 }}
+                label={{ value: 'α / ε', angle: 90, position: 'right', offset: 12, fill: '#6c757d', fontSize: 11 }}
               />
             )}
             <Tooltip content={<RewardTooltip />} />
@@ -182,41 +176,46 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               }}
             />
             {hasAlpha && (
-              <Line
-                yAxisId="hyper"
-                type="monotone"
-                dataKey="alpha"
-                stroke="#f08c00"
-                strokeWidth={1.6}
-                dot={false}
-                activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }}
-              />
+              <Line yAxisId="hyper" type="monotone" dataKey="alpha" stroke="#f08c00" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
             )}
             {hasEpsilon && (
-              <Line
-                yAxisId="hyper"
-                type="monotone"
-                dataKey="epsilon"
-                stroke="#0d6efd"
-                strokeWidth={1.6}
-                dot={false}
-                activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }}
-              />
+              <Line yAxisId="hyper" type="monotone" dataKey="epsilon" stroke="#0d6efd" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
             )}
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="reward-chart__description">
-        <p>Q-learning is an agent learning by trial and error. It starts with a blank Q-table (its memory of how good actions are), takes an action, observes the reward and the next state, and then adjusts its belief about that action. It achieves this by evaluating the utility of each action. In our simulations, the agent can perform any 4 actions (up, down, left, right) at any state. Whenever it performs an action, it evaluates the action by calculating its <i>Q-value</i>. The Q-learning agent calculates a state-action pair's q-value using the Bellman formula <code>Q(s, a) ← Q(s, a) + α · [r + γ · max Q(s’, a’) – Q(s, a)]</code>. The Q-value for a state-action pair is always calculated/updated immediately after the agent has taken said action and observed the resulting reward. </p>
-          <ol>
-            <li><code>Alpha (α)</code> is the learning rate: a high α learns fast from every experience but may overreact to noise. A low α is calmer and steadier, essentially telling the agent to trust its prior knowledge more and new information less, leading to more gradual learning.</li>
-            <li><code>Gamma (γ)</code> is the discount factor: values near 1 say “future rewards matter almost as much as now,” while smaller γ makes the agent short-sighted and focused on quick wins.</li>
-            <li><code>Epsilon (ε)</code> controls exploration in an ε-greedy policy: with probability <i>p = ε</i>, pick a random action to discover new options or with <i>p = 1-ε</i>, choose the best action you currently know. Epsilon decay slowly turns an <i>explorer</i> into an <i>exploiter</i> as training progresses. Alpha decay similarly tapers how aggressively you update once your estimates are more mature.</li>
-            <li><code>Step cost</code> is a small negative reward per move. It pushes the agent to finish in fewer steps instead of wandering.</li>
-            <li><code>Stochasticity</code> describes how often the environment perturbs your chosen action (a slip or misfire), so the agent must find strategies that still work under randomness. Notice how the agent becomes more averse to 'riskier' routes when there is higher stochasticity even if it takes longer or is less direct?</li>
-          </ol>
-        <p>Think of a delivery driver learning a city. The state is where you are; an action is which street to take next. The reward mixes tips with fuel and time costs; reaching the customer is a big positive terminal reward, while a traffic jam or dead end is a negative terminal. Alpha is how aggressively you revise your mental map after each trip. Gamma is how much you care about the rest of your shift versus this block. Epsilon is how often you try a new shortcut instead of the usual route. Step cost is the clock ticking while you drive. Stochasticity is the unexpected detour or light that forces a different turn. Over many deliveries, your “Q-table” becomes a map of which turns or actions tend to pay off, and as epsilon decays you increasingly follow those best-known routes.</p>
+
+      <div className="reward-chart__details-toggle">
+        <button type="button" onClick={() => setShowDetails((prev) => !prev)}>
+          {showDetails ? 'Hide learning notes' : 'Show learning notes'}
+        </button>
       </div>
+
+      {showDetails && (
+        <div className="reward-chart__description">
+          <p>
+            Q-learning updates a state-action value after each move using
+            <code> Q(s,a) ← Q(s,a) + α · [r + γ · max Q(s’,a’) − Q(s,a)] </code>.
+          </p>
+          <ol>
+            <li>
+              <code>Alpha (α)</code> controls learning rate.
+            </li>
+            <li>
+              <code>Gamma (γ)</code> controls long-term reward focus.
+            </li>
+            <li>
+              <code>Epsilon (ε)</code> balances exploration vs exploitation.
+            </li>
+            <li>
+              <code>Step cost</code> penalizes wandering.
+            </li>
+            <li>
+              <code>Stochasticity</code> injects action noise.
+            </li>
+          </ol>
+        </div>
+      )}
     </div>
   );
 };
