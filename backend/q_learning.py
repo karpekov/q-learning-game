@@ -398,9 +398,9 @@ class QLearningAgent:
 
         # Determine if we should store detailed steps for this episode
         store_details = (
-            episode_num < 10 or  # First 10 episodes
-            episode_num % self.store_episode_details_every == 0 or  # Every Nth episode
-            episode_num >= (total_episodes - 10)  # Last 10 episodes
+            # episode_num < 10 or  # First 10 episodes
+            episode_num % self.store_episode_details_every == 0  # Every Nth episode
+            # episode_num >= (total_episodes - 10)  # Last 10 episodes
         )
 
         while step_count < max_steps:
@@ -1119,7 +1119,7 @@ def run_experiments(graph_type="custom_rooms"):
                 epsilon_min=config['epsilon_min'],
                 alpha_decay_rate=config['alpha_decay_rate'],
                 optimistic_init=config['optimistic_init'],
-                store_episode_details_every=1000  # Store detailed data less frequently for experiments
+                store_episode_details_every=500  # Store detailed data less frequently for experiments
             )
 
             # Train agent

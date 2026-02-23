@@ -3,7 +3,7 @@ import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import { GraphCanvas } from './playbackView/playbackCanvas';
 import { GraphInfoTip } from './playbackView/playbackInfoTip';
 import { GraphStatsPanel } from './playbackView/playbackStatsPanel';
-import { GraphTooltip } from './playbackView/playbacklTooltip';
+import { PlaybackTooltip } from './playbackView/playbackTooltip';
 import {
   buildEpisodicQValueMap,
   buildFinalQValueMap,
@@ -176,7 +176,7 @@ export const PlaybackView: React.FC<PlaybackViewProps> = ({
                 />
               </TransformComponent>
 
-              {tooltip && <GraphTooltip tooltip={tooltip} />}
+              {tooltip && <PlaybackTooltip tooltip={tooltip} />}
             </>
           );
         }}

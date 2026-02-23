@@ -1,11 +1,11 @@
 import { QValuesTooltip, type ValueEntry } from '../modules/QValuesTooltip';
 import type { TooltipData } from './types';
 
-type GraphTooltipProps = {
+type PlaybackTooltipProps = {
   tooltip: TooltipData;
 };
 
-export function GraphTooltip({ tooltip }: GraphTooltipProps) {
+export function PlaybackTooltip({ tooltip }: PlaybackTooltipProps) {
   const entries: ValueEntry[] = tooltip.entries.map((entry) => ({
     id: `${tooltip.node}-${entry.target}`,
     target: entry.target,
