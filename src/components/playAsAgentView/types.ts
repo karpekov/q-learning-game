@@ -1,6 +1,6 @@
 import type { Coord } from '../../types';
 
-export type AgentPlayViewProps = {
+export type PlayAsAgentViewProps = {
   coords: Record<string, Coord>;
   adjacency: Record<string, string[]>;
   terminalRewards: Record<string, number>;

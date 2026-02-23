@@ -8,6 +8,11 @@ import {
 } from './constants';
 import { computeTrimmedArrowLine, qValueColor } from './utils';
 import { resolveQValue } from './data';
+import {
+  arcPath,
+  buildQuadrantValues,
+  QUADRANT_BOUNDS,
+} from '../graph/qValueRendering';
 import type { PathSegment, PolicyArrow, QValueLabel } from './types';
 
 type GraphCanvasProps = {
@@ -32,23 +37,6 @@ type GraphCanvasProps = {
 };
 
 const NODE_STROKE = '#2f3a2a';
-const QUADRANT_BOUNDS = [
-  { key: 'top', start: -135, end: -45 },
-  { key: 'right', start: -45, end: 45 },
-  { key: 'bottom', start: 45, end: 135 },
-  { key: 'left', start: 135, end: 225 },
-] as const;
-
-function arcPath(cx: number, cy: number, radius: number, startDeg: number, endDeg: number) {
-  const startRad = (startDeg * Math.PI) / 180;
-  const endRad = (endDeg * Math.PI) / 180;
-  const sx = cx + radius * Math.cos(startRad);
-  const sy = cy + radius * Math.sin(startRad);
-  const ex = cx + radius * Math.cos(endRad);
-  const ey = cy + radius * Math.sin(endRad);
-  return `M ${cx} ${cy} L ${sx} ${sy} A ${radius} ${radius} 0 0 1 ${ex} ${ey} Z`;
-}
-
 export function GraphCanvas({
   width,
   height,
@@ -82,7 +70,7 @@ export function GraphCanvas({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <path d="M0,0 L4,2 L0,4 z" fill="#d97706" />
+          <path d="M0,0 L4,2 L0,4 z" fill="#b06a1d" />
         </marker>
         <marker
           id="path-arrow"
@@ -94,7 +82,7 @@ export function GraphCanvas({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <path d="M0,0 L4,2 L0,4 z" fill="#0b73f7" />
+          <path d="M0,0 L4,2 L0,4 z" fill="#2f6f86" />
         </marker>
       </defs>
 
@@ -111,7 +99,7 @@ export function GraphCanvas({
       </g>
 
       {pathSegments.length > 0 && (
-        <g stroke="#0b73f7" strokeWidth={PATH_ARROW_STROKE_WIDTH} strokeOpacity={0.95}>
+        <g stroke="#2f6f86" strokeWidth={PATH_ARROW_STROKE_WIDTH} strokeOpacity={0.95}>
           {pathSegments.map(({ key, from, to }) => {
             const trimmed = computeTrimmedArrowLine(from, to, NODE_RADIUS, PATH_ARROW_TIP_OFFSET);
             if (!trimmed) return null;
@@ -130,7 +118,7 @@ export function GraphCanvas({
       )}
 
       {showPolicy && policyArrows.length > 0 && (
-        <g stroke="#d97706" strokeWidth={POLICY_ARROW_STROKE_WIDTH} opacity={1}>
+        <g stroke="#b06a1d" strokeWidth={POLICY_ARROW_STROKE_WIDTH} opacity={1}>
           {policyArrows.map(({ key, startX, startY, endX, endY }) => (
             <line key={`policy-${key}`} x1={startX} y1={startY} x2={endX} y2={endY} markerEnd="url(#policy-arrow)" />
           ))}
@@ -150,31 +138,13 @@ export function GraphCanvas({
               : '#e5eadf';
           const d = NODE_RADIUS * Math.SQRT1_2;
 
-          const quadrantValues: Record<string, number | null> = {
-            top: null,
-            right: null,
-            bottom: null,
-            left: null,
-          };
-
           const neighbors = adjacency[state] || [];
-          neighbors.forEach((to, idx) => {
-            const value = resolveQValue(activeQValueMap, state, to, idx);
-            if (value == null) return;
-            const toCoord = coords[to];
-            if (!toCoord) return;
-            const [tx, ty] = toCoord;
-            const angleDeg = Math.atan2(ty - y, tx - x) * (180 / Math.PI);
-            let key: 'top' | 'right' | 'bottom' | 'left' = 'left';
-            if (angleDeg >= -135 && angleDeg < -45) key = 'top';
-            else if (angleDeg >= -45 && angleDeg < 45) key = 'right';
-            else if (angleDeg >= 45 && angleDeg < 135) key = 'bottom';
-            else key = 'left';
-            const prev = quadrantValues[key];
-            if (prev == null || value > prev) {
-              quadrantValues[key] = value;
-            }
-          });
+          const quadrantValues = buildQuadrantValues(
+            [x, y],
+            neighbors,
+            coords,
+            (to, idx) => resolveQValue(activeQValueMap, state, to, idx)
+          );
 
           return (
             <g

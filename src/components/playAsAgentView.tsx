@@ -1,22 +1,27 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
-import { AgentCanvas } from './agentPlayView/AgentCanvas';
-import { AgentControlsPanel } from './agentPlayView/AgentControlsPanel';
-import { AgentStatsPanel } from './agentPlayView/AgentStatsPanel';
-import { AgentTooltip } from './agentPlayView/AgentTooltip';
+import { AgentCanvas } from './playAsAgentView/AgentCanvas';
+import { AgentControlsPanel } from './playAsAgentView/AgentControlsPanel';
+import { AgentStatsPanel } from './playAsAgentView/AgentStatsPanel';
+import { AgentTooltip } from './playAsAgentView/AgentTooltip';
+import {
+  createZoomCallbacks,
+  DEFAULT_ZOOM_WRAPPER_PROPS,
+  getRelativePointerPosition,
+  useGraphViewBox,
+} from './graph/view';
 import {
   buildAgentQValueLabels,
   buildAgentTooltipEntries,
   calculateQValueUpdate,
   defaultStart,
   pickStochasticNeighbor,
-} from './agentPlayView/data';
-import type { AgentPlayViewProps, AgentTooltipData, QCalculation } from './agentPlayView/types';
-import { buildPathSegments } from './graphViewer/data';
-import { computeBounds } from './graphViewer/utils';
-import './AgentPlayView.css';
+} from './playAsAgentView/data';
+import type { PlayAsAgentViewProps, AgentTooltipData, QCalculation } from './playAsAgentView/types';
+import { buildPathSegments } from './playbackView/data';
+import './playAsAgentView.css';
 
-export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
+export const PlayAsAgentView: React.FC<PlayAsAgentViewProps> = ({
   coords,
   adjacency,
   terminalRewards,
@@ -26,12 +31,7 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
   width = 960,
   height = 640,
 }) => {
-  const { minX, maxX, minY, maxY } = useMemo(() => computeBounds(coords), [coords]);
-  const pad = 1;
-  const vbX = minX - pad;
-  const vbY = minY - pad;
-  const vbW = maxX - minX + pad * 2;
-  const vbH = maxY - minY + pad * 2;
+  const { vbX, vbY, vbW, vbH } = useGraphViewBox(coords);
 
   const start = useMemo(() => defaultStart(coords), [coords]);
   const [current, setCurrent] = useState<string>(start);
@@ -47,7 +47,6 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
   const [stochasticity, setStochasticity] = useState<number>(0);
 
   const qValuesRef = useRef<Record<string, Record<string, number>>>({});
-  const qHistoryRef = useRef<{ from: string; to: string; prev: number | undefined }[]>([]);
   const qCalcRef = useRef<Record<string, QCalculation>>({});
   const [qVersion, setQVersion] = useState<number>(0);
 
@@ -58,6 +57,7 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
   const bestReward = episodes.length ? Math.max(...episodes) : null;
 
   const neighbors = useMemo(() => (current && adjacency[current]) || [], [adjacency, current]);
+  const activeQValueMap = qValuesRef.current;
 
   const visibleNodes = useMemo(() => {
     if (easyMode) {
@@ -116,7 +116,6 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
 
     if (fromState) {
       const qValue = calculateQValue(fromState, actual);
-      qHistoryRef.current.push({ from: fromState, to: actual, prev: qValue.previous });
       if (onQValueCalculated) {
         onQValueCalculated({ from: fromState, to: actual, qValue: qValue.updated });
       }
@@ -138,7 +137,6 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
     setEverVisited((prev) => new Set(prev).add(s));
     setPath([s]);
     setEnded(false);
-    qHistoryRef.current = [];
     setTooltip(null);
   }, [coords]);
 
@@ -147,7 +145,6 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
     setEverVisited(new Set([defaultStart(coords)]));
     setEpisodes([]);
     qValuesRef.current = {};
-    qHistoryRef.current = [];
     qCalcRef.current = {};
     setTooltip(null);
     setQVersion((v) => v + 1);
@@ -253,9 +250,7 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
       return;
     }
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    const x = rect ? event.clientX - rect.left : event.clientX;
-    const y = rect ? event.clientY - rect.top : event.clientY;
+    const { x, y } = getRelativePointerPosition(containerRef.current, event);
 
     setTooltip({
       node: state,
@@ -267,75 +262,73 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
 
   return (
     <div className="agent-play-root" ref={containerRef}>
-      <TransformWrapper
-        initialScale={1}
-        minScale={0.5}
-        maxScale={3}
-        wheel={{ step: 0.1 }}
-        doubleClick={{ disabled: true }}
-      >
-        {({ zoomIn, zoomOut, resetTransform }) => (
-          <>
-            <AgentControlsPanel
-              ended={ended}
-              reset={reset}
-              current={current}
-              visitedCount={visited.size}
-              stepCost={stepCost}
-              setStepCost={setStepCost}
-              stochasticity={stochasticity}
-              setStochasticity={setStochasticity}
-              easyMode={easyMode}
-              setEasyMode={setEasyMode}
-              hardMode={hardMode}
-              setHardMode={setHardMode}
-              showQValues={showQValues}
-              setShowQValues={setShowQValues}
-              onZoomOut={() => zoomOut()}
-              onResetTransform={() => resetTransform()}
-              onZoomIn={() => zoomIn()}
-            />
+      <TransformWrapper {...DEFAULT_ZOOM_WRAPPER_PROPS}>
+        {({ zoomIn, zoomOut, resetTransform }) => {
+          const zoomHandlers = createZoomCallbacks(zoomIn, zoomOut, resetTransform);
+          return (
+            <>
+              <AgentControlsPanel
+                ended={ended}
+                reset={reset}
+                current={current}
+                visitedCount={visited.size}
+                stepCost={stepCost}
+                setStepCost={setStepCost}
+                stochasticity={stochasticity}
+                setStochasticity={setStochasticity}
+                easyMode={easyMode}
+                setEasyMode={setEasyMode}
+                hardMode={hardMode}
+                setHardMode={setHardMode}
+                showQValues={showQValues}
+                setShowQValues={setShowQValues}
+                onZoomOut={zoomHandlers.onZoomOut}
+                onResetTransform={zoomHandlers.onResetTransform}
+                onZoomIn={zoomHandlers.onZoomIn}
+              />
 
-            <TransformComponent wrapperClass="agent-play-wrapper" contentClass="agent-play-content">
-              <AgentCanvas
-                width={width}
-                height={height}
-                vbX={vbX}
-                vbY={vbY}
-                vbW={vbW}
-                vbH={vbH}
-                coords={coords}
-                adjacency={adjacency}
-                neighbors={neighbors}
-                visited={visited}
-                pathSegments={pathSegments}
-                visibleNodes={visibleNodes}
+              <TransformComponent wrapperClass="agent-play-wrapper" contentClass="agent-play-content">
+                <AgentCanvas
+                  width={width}
+                  height={height}
+                  vbX={vbX}
+                  vbY={vbY}
+                  vbW={vbW}
+                  vbH={vbH}
+                  coords={coords}
+                  adjacency={adjacency}
+                  neighbors={neighbors}
+                  visited={visited}
+                  pathSegments={pathSegments}
+                  visibleNodes={visibleNodes}
+                  current={current}
+                  terminalRewards={terminalRewards}
+                  everVisited={everVisited}
+                  easyMode={easyMode}
+                  hardMode={hardMode}
+                  ended={ended}
+                  qValueLabels={qValueLabels}
+                  showQValues={showQValues}
+                  activeQValueMap={activeQValueMap}
+                  onMoveTo={moveTo}
+                  onNodeHover={showNodeTooltip}
+                  onNodeLeave={() => setTooltip(null)}
+                />
+              </TransformComponent>
+
+              <AgentStatsPanel
+                pathLength={path.length}
+                stepCost={stepCost}
+                ended={ended}
                 current={current}
                 terminalRewards={terminalRewards}
-                everVisited={everVisited}
-                easyMode={easyMode}
-                hardMode={hardMode}
-                ended={ended}
-                qValueLabels={qValueLabels}
-                showQValues={showQValues}
-                onMoveTo={moveTo}
-                onNodeHover={showNodeTooltip}
-                onNodeLeave={() => setTooltip(null)}
+                episodes={episodes}
+                latestReward={latestReward}
+                bestReward={bestReward}
               />
-            </TransformComponent>
-
-            <AgentStatsPanel
-              pathLength={path.length}
-              stepCost={stepCost}
-              ended={ended}
-              current={current}
-              terminalRewards={terminalRewards}
-              episodes={episodes}
-              latestReward={latestReward}
-              bestReward={bestReward}
-            />
-          </>
-        )}
+            </>
+          );
+        }}
       </TransformWrapper>
 
       {tooltip && <AgentTooltip tooltip={tooltip} />}
@@ -343,4 +336,4 @@ export const AgentPlayView: React.FC<AgentPlayViewProps> = ({
   );
 };
 
-export default AgentPlayView;
+export default PlayAsAgentView;

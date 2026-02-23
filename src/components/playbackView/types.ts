@@ -12,7 +12,7 @@ export type PolicyValue = string | number;
 
 export type QValuesMap = ExperimentDataSummary['q_values'];
 
-export type GraphViewerProps = {
+export type PlaybackViewProps = {
   coords: Record<string, Coord>;
   adjacency: Record<string, string[]>;
   terminalRewards: Record<string, number>;

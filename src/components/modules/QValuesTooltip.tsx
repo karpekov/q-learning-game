@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { qValueColor } from '../graphViewer/utils';
+import { qValueColor } from '../playbackView/utils';
 
 type ValueEntry = {
   id: string;
@@ -44,7 +44,7 @@ export function QValuesTooltip({
   formulaEntries = [],
   className,
 }: QValuesTooltipProps) {
-  const maxWidth = 340;
+  const maxWidth = 400;
   const maxHeight = 260;
   const clampedX = typeof window !== 'undefined' ? Math.max(8, Math.min(position.x, window.innerWidth - maxWidth - 16)) : position.x;
   const clampedY = typeof window !== 'undefined' ? Math.max(8, Math.min(position.y, window.innerHeight - maxHeight - 16)) : position.y;
@@ -76,7 +76,7 @@ export function QValuesTooltip({
               </div>
               <div className="agent-q-tooltip-formula">Q(s,a) ← Q(s,a) + α (r + γ·maxQ - Q(s,a))</div>
               <div className="agent-q-tooltip-values">
-                Q(s,a) ← {`${entry.prev.toFixed(3)} + ${entry.alpha.toFixed(3)} * (${entry.reward.toFixed(3)} + ${entry.gamma.toFixed(3)} * ${entry.bestNext.toFixed(3)} - ${entry.prev.toFixed(3)})`}
+                Q(s,a) ← {entry.prev.toFixed(3)} + {entry.alpha.toFixed(3)} * ({entry.reward.toFixed(3)} + {entry.gamma.toFixed(3)} *{' '}<span style={{ color: qValueColor(entry.bestNext) }}>{entry.bestNext.toFixed(3)}</span>{' '} - {entry.prev.toFixed(3)})
               </div>
               <div className="agent-q-tooltip-values">
                 Q({entry.stateLabel},{entry.stateLabel} → {entry.target}) ={' '}

@@ -1,0 +1,84 @@
+:root {
+  --viz-panel-border: 1px solid rgba(90, 106, 78, 0.28);
+  --viz-panel-background: rgba(242, 246, 233, 0.82);
+  --viz-panel-shadow: 0 10px 24px rgba(21, 38, 10, 0.16);
+  --viz-panel-divider: 1px solid rgba(87, 106, 72, 0.18);
+  --viz-panel-title-color: #5b6755;
+  --viz-canvas-background: radial-gradient(circle at 50% 4%, #fbfcf8 0%, #f4f6ef 65%);
+}
+
+.graph-viewer-canvas,
+.agent-play-field {
+  border-radius: 0;
+}
+
+.graph-view-wrapper,
+.graph-view-content,
+.agent-play-wrapper,
+.agent-play-content {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-view-content,
+.agent-play-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.graph-stats-panel,
+.agent-controls-panel {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  width: min(360px, calc(100% - 20px));
+  font-size: 13px;
+  border-radius: 0;
+  border: var(--viz-panel-border);
+  background: var(--viz-panel-background);
+  box-shadow: var(--viz-panel-shadow);
+  backdrop-filter: blur(8px);
+}
+
+.graph-stats-section,
+.agent-controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.graph-stats-section + .graph-stats-section,
+.agent-controls-section + .agent-controls-section {
+  border-top: var(--viz-panel-divider);
+  padding-top: 8px;
+}
+
+.graph-stats-section__title,
+.agent-controls-section__title {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: var(--viz-panel-title-color);
+  font-weight: 700;
+}
+
+.graph-zoom-controls,
+.agent-zoom-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 900px) {
+  .graph-stats-panel,
+  .agent-controls-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+}

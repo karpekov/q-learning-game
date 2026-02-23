@@ -7,16 +7,6 @@ export type TrimmedArrowLine = {
   endY: number;
 };
 
-export function computeBounds(coords: Record<string, Coord>) {
-  const xs = Object.values(coords).map(([x]) => x);
-  const ys = Object.values(coords).map(([, y]) => y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  return { minX, maxX, minY, maxY };
-}
-
 export function formatQValue(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1000) return value.toFixed(0);

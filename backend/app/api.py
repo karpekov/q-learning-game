@@ -233,7 +233,7 @@ def list_experiments(graph_type: str):
 def get_experiment(
     graph_type: str,
     exp_id: str,
-    include: Optional[List[str]] = Query(None, description="Sections to include: environment,agent,policy,q_values,episodes,total_reward_history,episode_length_history,epsilon_history,alpha_history,intermediate_rewards"),
+    include: Optional[List[str]] = Query(None, description="Sections to include: environment,agent,policy,q_values,episodes,total_reward_history,episode_length_history,epsilon_history,alpha_history,intermediate_rewards,trend_points"),
     every: int = Query(1, ge=1, description="Return every Nth episode in episodes array if included"),
 ):
     if graph_type not in AVAILABLE_GRAPHS:
@@ -251,6 +251,51 @@ def get_experiment(
                     filtered["episodes"] = data["episodes"][::every]
                 else:
                     filtered["episodes"] = data["episodes"]
+            elif key == "trend_points":
+                # Lightweight trend payload aligned to stored detailed episodes.
+                # Uses rolling reward from training (`intermediate_rewards`) so frontend
+                # avoids plotting full 100k-point raw histories.
+                episodes = data.get("episodes", [])
+                rewards = data.get("total_reward_history", [])
+                rolling = data.get("intermediate_rewards", [])
+                epsilon_history = data.get("epsilon_history", [])
+                alpha_history = data.get("alpha_history", [])
+                agent = data.get("agent", {})
+                initial_epsilon = agent.get("initial_epsilon")
+                initial_alpha = agent.get("initial_alpha")
+
+                trend_points = []
+                for idx, ep in enumerate(episodes):
+                    ep_num = ep.get("episode_num")
+                    if not isinstance(ep_num, int):
+                        ep_num = idx
+
+                    reward = rewards[ep_num] if 0 <= ep_num < len(rewards) else ep.get("total_reward")
+                    reward_rolling = rolling[ep_num] if 0 <= ep_num < len(rolling) else None
+
+                    epsilon_start = ep.get("epsilon")
+                    if epsilon_start is None:
+                        if ep_num == 0:
+                            epsilon_start = initial_epsilon
+                        elif 0 <= ep_num - 1 < len(epsilon_history):
+                            epsilon_start = epsilon_history[ep_num - 1]
+
+                    alpha_start = ep.get("alpha")
+                    if alpha_start is None:
+                        if ep_num == 0:
+                            alpha_start = initial_alpha
+                        elif 0 <= ep_num - 1 < len(alpha_history):
+                            alpha_start = alpha_history[ep_num - 1]
+
+                    trend_points.append({
+                        "episode_num": ep_num,
+                        "reward": reward,
+                        "reward_rolling": reward_rolling,
+                        "epsilon": epsilon_start,
+                        "alpha": alpha_start,
+                    })
+
+                filtered["trend_points"] = trend_points
             elif key in data:
                 filtered[key] = data[key]
             elif key in ("environment", "agent") and key in data:

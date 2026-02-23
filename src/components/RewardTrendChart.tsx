@@ -10,11 +10,13 @@ import {
   YAxis,
 } from 'recharts';
 import type { NameType, Payload, ValueType } from 'recharts/types/component/DefaultTooltipContent';
+import { qValueColor } from './playbackView/utils';
 import './RewardTrendChart.css';
 
 type Point = {
   index: number;
   value: number;
+  rawValue?: number;
   alpha?: number;
   epsilon?: number;
 };
@@ -22,7 +24,6 @@ type Point = {
 type Props = {
   points: Point[];
   width: number;
-  height?: number;
 };
 
 type RewardTooltipPayload = Payload<ValueType, NameType>;
@@ -45,10 +46,12 @@ const RewardTooltip: React.FC<RewardTooltipProps> = ({ active, payload, label })
   const epsilonEntry = typedPayload.find((entry) => entry && entry.dataKey === 'epsilon');
   const formattedAlpha = typeof alphaEntry?.value === 'number' ? alphaEntry.value.toFixed(4) : undefined;
   const formattedEpsilon = typeof epsilonEntry?.value === 'number' ? epsilonEntry.value.toFixed(4) : undefined;
+  const sampleNumber = typeof rewardEntry?.payload?.sample === 'number' ? rewardEntry.payload.sample : undefined;
 
   return (
     <div className="reward-tooltip">
       <div className="reward-tooltip__title">Episode {label ?? '-'}</div>
+      {sampleNumber && <div className="reward-tooltip__value">Sample: {sampleNumber}</div>}
       <div className="reward-tooltip__value">Reward: {formatted}</div>
       {formattedEpsilon && <div className="reward-tooltip__value">ε: {formattedEpsilon}</div>}
       {formattedAlpha && <div className="reward-tooltip__value">α: {formattedAlpha}</div>}
@@ -61,50 +64,43 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
 
   if (!points.length || width <= 0) return null;
 
-  const data = points.map((p) => ({
+  const data = points.map((p, sampleIndex) => ({
+    sample: sampleIndex + 1,
     episode: p.index + 1,
     reward: p.value,
+    rawReward: p.rawValue,
     alpha: p.alpha,
     epsilon: p.epsilon,
   }));
 
   const min = Math.min(...data.map((d) => d.reward));
   const max = Math.max(...data.map((d) => d.reward));
-  const span = Math.max(Math.abs(min), Math.abs(max)) || 1;
+  const episodeMin = Math.min(...data.map((d) => d.episode));
+  const episodeMax = Math.max(...data.map((d) => d.episode));
   const domainMin = min === max ? min - 1 : min;
   const domainMax = min === max ? max + 1 : max;
   const hasAlpha = data.some((d) => typeof d.alpha === 'number');
   const hasEpsilon = data.some((d) => typeof d.epsilon === 'number');
   const legendItems = [
-    { key: 'reward', label: 'Reward', color: '#20c997' },
-    hasAlpha ? { key: 'alpha', label: 'Alpha', color: '#f08c00' } : null,
-    hasEpsilon ? { key: 'epsilon', label: 'Epsilon', color: '#0d6efd' } : null,
+    { key: 'reward', label: 'Reward', color: '#3f5a16' },
+    hasAlpha ? { key: 'alpha', label: 'Alpha', color: '#b06a1d' } : null,
+    hasEpsilon ? { key: 'epsilon', label: 'Epsilon', color: '#2f6f86' } : null,
   ].filter((x): x is { key: string; label: string; color: string } => Boolean(x));
-
-  const colorForReward = (value: number) => {
-    if (!Number.isFinite(value)) {
-      return { hue: 210, saturation: 10, lightness: 55, css: 'hsl(210 10% 55%)' };
-    }
-    const norm = Math.max(-1, Math.min(1, value / span));
-    const hue = norm >= 0 ? 140 : 5;
-    const intensity = Math.abs(norm);
-    const saturation = 55 + intensity * 35;
-    const lightness = 60 - intensity * 25;
-    return { hue, saturation, lightness, css: `hsl(${hue} ${saturation}% ${lightness}%)` };
-  };
 
   const gradientStops = data.map((d, idx) => ({
     offset: data.length === 1 ? 0 : idx / (data.length - 1),
-    color: colorForReward(d.reward).css,
+    color: qValueColor(d.reward),
   }));
 
-  const areaTop = colorForReward(domainMax);
+  const areaTop = qValueColor(domainMax);
 
   return (
     <div className="reward-chart" style={{ width }}>
       <div className="reward-chart__header">
         <strong className="reward-chart__title">Reward Trend</strong>
-        <span className="reward-chart__meta">Episodes: {data.length} · Range: {min.toFixed(2)} to {max.toFixed(2)}</span>
+        <span className="reward-chart__meta">
+          Samples: {data.length} · Episode range: {episodeMin.toLocaleString()} to {episodeMax.toLocaleString()} · Reward range: {min.toFixed(2)} to {max.toFixed(2)}
+        </span>
       </div>
 
       {legendItems.length > 0 && (
@@ -119,12 +115,12 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
       )}
 
       <div className="reward-chart__body">
-        <ResponsiveContainer>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 12, right: 20, left: 20, bottom: 12 }}>
             <defs>
               <linearGradient id="rewardArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={`hsla(${areaTop.hue} ${areaTop.saturation}% ${areaTop.lightness}%, 0.28)`} />
-                <stop offset="95%" stopColor={`hsla(${areaTop.hue} ${areaTop.saturation}% ${areaTop.lightness}%, 0)`} />
+                <stop offset="5%" stopColor={areaTop} stopOpacity={0.28} />
+                <stop offset="95%" stopColor={areaTop} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="rewardLineGradient" x1="0" y1="0" x2="1" y2="0">
                 {gradientStops.map((stop, idx) => (
@@ -133,7 +129,15 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(33,37,41,0.08)" vertical={false} />
-            <XAxis dataKey="episode" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+            <XAxis
+              dataKey="episode"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              fontSize={12}
+              tickFormatter={(v) => Number(v).toLocaleString()}
+              label={{ value: 'Training Episode', position: 'insideBottom', offset: -6, fill: '#6c757d', fontSize: 11 }}
+            />
             <YAxis
               yAxisId="reward"
               tickLine={false}
@@ -167,19 +171,19 @@ const RewardTrendChart: React.FC<Props> = ({ points, width }) => {
               stroke="url(#rewardLineGradient)"
               strokeWidth={2}
               dot={({ cx, cy, payload }) => {
-                const color = colorForReward(payload.reward).css;
+                const color = qValueColor(payload.reward);
                 return <circle cx={cx} cy={cy} r={2.8} fill={color} stroke="#ffffff" strokeWidth={1.2} />;
               }}
               activeDot={({ cx, cy, payload }) => {
-                const color = colorForReward(payload.reward).css;
+                const color = qValueColor(payload.reward);
                 return <circle cx={cx} cy={cy} r={4.5} fill={color} stroke="#ffffff" strokeWidth={1.5} />;
               }}
             />
             {hasAlpha && (
-              <Line yAxisId="hyper" type="monotone" dataKey="alpha" stroke="#f08c00" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
+              <Line yAxisId="hyper" type="monotone" dataKey="alpha" stroke="#b06a1d" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
             )}
             {hasEpsilon && (
-              <Line yAxisId="hyper" type="monotone" dataKey="epsilon" stroke="#0d6efd" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
+              <Line yAxisId="hyper" type="monotone" dataKey="epsilon" stroke="#2f6f86" strokeWidth={1.6} dot={false} activeDot={{ r: 3, strokeWidth: 1, stroke: '#fff' }} />
             )}
           </LineChart>
         </ResponsiveContainer>

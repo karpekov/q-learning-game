@@ -1,10 +1,34 @@
 .agent-checkbox-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
   margin-left: 4px;
+  border: 1px solid #212529;
+  background: #fff;
+  position: relative;
 }
+
+.agent-checkbox-input:checked {
+  background: #212529;
+}
+
+.agent-checkbox-input:checked::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 3px;
+  height: 6px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+
 
 .agent-checkbox-row {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   align-items: center;
 }
 
@@ -17,8 +41,7 @@
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(225, 234, 205, 0.9);
-  border: 1px solid rgba(90, 106, 78, 0.22);
+  background: transparent;
   padding: 0;
 }
 
@@ -38,7 +61,7 @@
   background-color: rgba(33, 37, 41, 0.86);
   color: #f8f9fa;
   padding: 6px 10px;
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 13px;
   line-height: 1.3;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);

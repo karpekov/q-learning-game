@@ -1,7 +1,11 @@
 import type { Coord, Episode } from '../../types';
+import {
+  buildDirectionalQValueLabels,
+  resolveQValueFromMap,
+} from '../graph/qValueRendering';
 import { NODE_RADIUS, POLICY_ARROW_TIP_OFFSET } from './constants';
 import type { PathSegment, PolicyArrow, PolicyValue, QValueLabel } from './types';
-import { computeTrimmedArrowLine, formatQValue, qValueColor } from './utils';
+import { computeTrimmedArrowLine } from './utils';
 
 export function buildPathSegments(
   path: string[],
@@ -147,19 +151,7 @@ export function resolveQValue(
   to: string,
   idx: number
 ): number | null {
-  if (!activeQValueMap) return null;
-  const stateValues = activeQValueMap[state];
-  if (!stateValues) return null;
-
-  let value = stateValues[to];
-  if (value == null) {
-    const idxKey = String(idx);
-    if (Object.prototype.hasOwnProperty.call(stateValues, idxKey)) {
-      value = stateValues[idxKey];
-    }
-  }
-
-  return value ?? null;
+  return resolveQValueFromMap(activeQValueMap, state, to, idx);
 }
 
 export function buildQValueLabels(
@@ -167,51 +159,5 @@ export function buildQValueLabels(
   adjacency: Record<string, string[]>,
   coords: Record<string, Coord>
 ): QValueLabel[] {
-  if (!activeQValueMap) return [];
-
-  const labels: QValueLabel[] = [];
-
-  for (const [from, neighbors] of Object.entries(adjacency)) {
-    const fromCoord = coords[from];
-    if (!fromCoord) continue;
-    const stateValues = activeQValueMap[from];
-    if (!stateValues) continue;
-
-    neighbors.forEach((to, idx) => {
-      const toCoord = coords[to];
-      if (!toCoord) return;
-
-      const idxKey = String(idx);
-      let value = stateValues[to];
-      if (value == null && Object.prototype.hasOwnProperty.call(stateValues, idxKey)) {
-        value = stateValues[idxKey];
-      }
-      if (value == null) return;
-      if (Math.abs(value) < 0.005) return;
-
-      const [sx, sy] = fromCoord;
-      const [tx, ty] = toCoord;
-      const dx = tx - sx;
-      const dy = ty - sy;
-      const length = Math.hypot(dx, dy) || 1;
-
-      const along = Math.min(0.35, Math.max(0.18, 0.22 + idx * 0.04));
-      const baseX = sx + dx * along;
-      const baseY = sy + dy * along;
-
-      const perpX = (-dy / length) * 0.18;
-      const perpY = (dx / length) * 0.18;
-      const direction = idx % 2 === 0 ? 1 : -1;
-
-      labels.push({
-        key: `${from}->${to}-${idx}`,
-        x: baseX + perpX * direction,
-        y: baseY + perpY * direction,
-        label: formatQValue(value),
-        color: qValueColor(value),
-      });
-    });
-  }
-
-  return labels;
+  return buildDirectionalQValueLabels(activeQValueMap, adjacency, coords);
 }

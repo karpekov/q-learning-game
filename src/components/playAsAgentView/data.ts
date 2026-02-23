@@ -1,5 +1,8 @@
 import type { Coord } from '../../types';
-import { angleToArrow, formatQValue, qValueColor } from '../graphViewer/utils';
+import {
+  arrowDirectionBetween,
+  buildDirectionalQValueLabels,
+} from '../graph/qValueRendering';
 import type { AgentTooltipEntry, QLabel, QCalculation } from './types';
 
 export function defaultStart(coords: Record<string, Coord>): string {
@@ -120,45 +123,11 @@ export function buildAgentQValueLabels(
   coords: Record<string, Coord>,
   adjacency: Record<string, string[]>
 ): QLabel[] {
-  const labels: QLabel[] = [];
-
-  for (const [from, values] of Object.entries(qValues)) {
-    const fromCoord = coords[from];
-    if (!fromCoord) continue;
-
-    const neighbors = adjacency[from] || [];
-    neighbors.forEach((to, idx) => {
-      const value = values[to];
-      if (value == null) return;
-      if (Math.abs(value) < 0.005) return;
-
-      const toCoord = coords[to];
-      if (!toCoord) return;
-
-      const [sx, sy] = fromCoord;
-      const [tx, ty] = toCoord;
-      const dx = tx - sx;
-      const dy = ty - sy;
-      const length = Math.hypot(dx, dy) || 1;
-
-      const along = Math.min(0.36, Math.max(0.2, 0.22 + idx * 0.05));
-      const baseX = sx + dx * along;
-      const baseY = sy + dy * along;
-      const perpX = (-dy / length) * 0.18;
-      const perpY = (dx / length) * 0.18;
-      const direction = idx % 2 === 0 ? 1 : -1;
-
-      labels.push({
-        key: `${from}->${to}-${idx}`,
-        x: baseX + perpX * direction,
-        y: baseY + perpY * direction,
-        label: formatQValue(value),
-        color: qValueColor(value),
-      });
-    });
-  }
-
-  return labels;
+  return buildDirectionalQValueLabels(qValues, adjacency, coords, {
+    alongMin: 0.2,
+    alongMax: 0.36,
+    alongStep: 0.05,
+  });
 }
 
 export function buildAgentTooltipEntries(
@@ -178,19 +147,7 @@ export function buildAgentTooltipEntries(
       if (value == null) return null;
 
       const calc = qCalcs[`${state}->${to}`];
-      let direction = '';
-      const center = coords[state];
-      const neighborCoord = coords[to];
-      if (center && neighborCoord) {
-        const [sx, sy] = center;
-        const [tx, ty] = neighborCoord;
-        const dx = tx - sx;
-        const dy = ty - sy;
-        if (dx !== 0 || dy !== 0) {
-          const angle = Math.atan2(-dy, dx) * (180 / Math.PI);
-          direction = angleToArrow(angle);
-        }
-      }
+      const direction = arrowDirectionBetween(coords[state], coords[to]);
 
       return {
         to,

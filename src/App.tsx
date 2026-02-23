@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, RefreshCcw, SkipBack, SkipForward, StepBack, StepForward, X } from 'lucide-react';
 import { api } from './api';
 import type { Episode, ExperimentDataSummary, ExperimentListResponse, GraphDef, GraphInfo } from './types';
-import AgentPlayView from './components/AgentPlayView';
-import GraphViewer from './components/GraphViewer';
+import PlayAsAgentView from './components/playAsAgentView';
+import PlaybackView from './components/playbackView';
 import ModePager from './components/ModePager';
 import RewardTrendChart from './components/RewardTrendChart';
 
@@ -256,12 +256,44 @@ function App() {
   }, [currentEpisode, stepIdx]);
 
   const rewardTrend = useMemo(() => {
-    if (mode !== 'playback' || !expData?.episodes?.length) {
-      return [] as { index: number; value: number; alpha?: number; epsilon?: number }[];
+    if (mode !== 'playback') {
+      return [] as { index: number; value: number; rawValue?: number; alpha?: number; epsilon?: number }[];
     }
+
+    const trendPoints = expData?.trend_points ?? [];
+    if (trendPoints.length > 0) {
+      return trendPoints.map((point, idx) => ({
+        index: typeof point.episode_num === 'number' ? point.episode_num : idx,
+        value:
+          typeof point.reward_rolling === 'number'
+            ? point.reward_rolling
+            : typeof point.reward === 'number'
+              ? point.reward
+              : 0,
+        rawValue: typeof point.reward === 'number' ? point.reward : undefined,
+        alpha:
+          typeof point.alpha === 'number'
+            ? point.alpha
+            : typeof expData?.agent?.alpha === 'number'
+              ? expData.agent.alpha
+              : undefined,
+        epsilon:
+          typeof point.epsilon === 'number'
+            ? point.epsilon
+            : typeof expData?.agent?.epsilon === 'number'
+              ? expData.agent.epsilon
+              : undefined,
+      }));
+    }
+
+    if (!expData?.episodes?.length) {
+      return [] as { index: number; value: number; rawValue?: number; alpha?: number; epsilon?: number }[];
+    }
+
     return expData.episodes.map((episode, idx) => ({
-      index: idx,
+      index: typeof episode.episode_num === 'number' ? episode.episode_num : idx,
       value: typeof episode.total_reward === 'number' ? episode.total_reward : 0,
+      rawValue: typeof episode.total_reward === 'number' ? episode.total_reward : undefined,
       alpha:
         typeof episode.alpha === 'number'
           ? episode.alpha
@@ -498,7 +530,7 @@ function App() {
             {graphDef ? (
               <>
                 <div className={`viewer-pane viewer-pane--playback ${mode === 'playback' ? 'is-active' : ''}`}>
-                  <GraphViewer
+                  <PlaybackView
                     coords={graphDef.coords}
                     adjacency={graphDef.adjacency}
                     terminalRewards={graphDef.terminal_rewards}
@@ -553,7 +585,7 @@ function App() {
                   />
                 </div>
                 <div className={`viewer-pane viewer-pane--play ${mode === 'play' ? 'is-active' : ''}`}>
-                  <AgentPlayView
+                  <PlayAsAgentView
                     coords={graphDef.coords}
                     adjacency={graphDef.adjacency}
                     terminalRewards={graphDef.terminal_rewards}

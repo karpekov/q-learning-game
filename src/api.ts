@@ -15,7 +15,7 @@ export const api = {
   experiments: (graphType: string) => get<ExperimentListResponse>(`/experiments/${encodeURIComponent(graphType)}`),
   experimentData: (graphType: string, expId: string, withEpisodes = true, every = 1) => {
     const params = new URLSearchParams();
-    const include = ['environment', 'agent', 'policy', 'q_values'];
+    const include = ['environment', 'agent', 'policy', 'q_values', 'trend_points'];
     if (withEpisodes) include.push('episodes');
     include.forEach((v) => params.append('include', v));
     if (withEpisodes && every > 1) params.set('every', String(every));
@@ -26,4 +26,3 @@ export const api = {
       `/experiments/${encodeURIComponent(graphType)}/${encodeURIComponent(expId)}/greedy-path?start=${encodeURIComponent(start)}`
     ),
 };
-

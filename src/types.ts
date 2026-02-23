@@ -47,6 +47,14 @@ export interface Episode {
   alpha?: number;
 }
 
+export interface TrendPoint {
+  episode_num: number;
+  reward?: number;
+  reward_rolling?: number;
+  epsilon?: number;
+  alpha?: number;
+}
+
 export interface ExperimentDataSummary {
   environment: {
     adjacency: Record<string, string[]>;
@@ -58,5 +66,6 @@ export interface ExperimentDataSummary {
   policy: Record<string, string> | Record<string, number>;
   q_values: Record<string, Record<string, number>> | Record<string, Record<number, number>>;
   episodes?: Episode[];
+  trend_points?: TrendPoint[];
   meta?: { graph_type: string; exp_id: string };
 }

@@ -1,7 +1,13 @@
 import type { Coord } from '../../types';
-import { NODE_RADIUS, PATH_ARROW_STROKE_WIDTH, PATH_ARROW_TIP_OFFSET } from '../graphViewer/constants';
-import { computeTrimmedArrowLine } from '../graphViewer/utils';
+import { NODE_RADIUS, PATH_ARROW_STROKE_WIDTH, PATH_ARROW_TIP_OFFSET } from '../playbackView/constants';
+import { computeTrimmedArrowLine, qValueColor } from '../playbackView/utils';
+import {
+  arcPath,
+  buildQuadrantValues,
+  QUADRANT_BOUNDS,
+} from '../graph/qValueRendering';
 import type { QLabel } from './types';
+import { resolveQValue } from '../playbackView/data';
 
 type AgentCanvasProps = {
   width: number;
@@ -24,11 +30,13 @@ type AgentCanvasProps = {
   ended: boolean;
   qValueLabels: QLabel[];
   showQValues: boolean;
+  activeQValueMap: Record<string, Record<string, number>>;
   onMoveTo: (state: string) => void;
   onNodeHover: (state: string, event: React.MouseEvent<SVGGElement, MouseEvent>) => void;
   onNodeLeave: () => void;
 };
 
+const NODE_STROKE = '#2f3a2a';
 export function AgentCanvas({
   width,
   height,
@@ -50,6 +58,7 @@ export function AgentCanvas({
   ended,
   qValueLabels,
   showQValues,
+  activeQValueMap,
   onMoveTo,
   onNodeHover,
   onNodeLeave,
@@ -67,7 +76,7 @@ export function AgentCanvas({
           orient="auto"
           markerUnits="strokeWidth"
         >
-          <path d="M0,0 L4,2 L0,4 z" fill="#16a67d" />
+          <path d="M0,0 L4,2 L0,4 z" fill="#2f6f86" />
         </marker>
       </defs>
 
@@ -99,7 +108,7 @@ export function AgentCanvas({
       </g>
 
       {pathSegments.length > 0 && (
-        <g stroke="#16a67d" strokeWidth={PATH_ARROW_STROKE_WIDTH} strokeOpacity={0.9}>
+        <g stroke="#2f6f86" strokeWidth={PATH_ARROW_STROKE_WIDTH} strokeOpacity={0.9}>
           {pathSegments.map(({ key, from, to }) => {
             const trimmed = computeTrimmedArrowLine(from, to, NODE_RADIUS, PATH_ARROW_TIP_OFFSET);
             if (!trimmed) return null;
@@ -141,10 +150,15 @@ export function AgentCanvas({
               : wasEverVisited
                 ? '#dbe2d3'
                 : '#e5eadf';
-          const opacity = isCurrent ? 1 : isNeighbor ? 0.62 : 0.9;
-          const r = NODE_RADIUS;
-          const d = r * Math.SQRT1_2;
+          const d = NODE_RADIUS * Math.SQRT1_2;
           const nodeClass = isNeighbor && !ended ? 'agent-node agent-node--interactive' : 'agent-node';
+          const stateNeighbors = adjacency[state] || [];
+          const quadrantValues = buildQuadrantValues(
+            [x, y],
+            stateNeighbors,
+            coords,
+            (to, idx) => resolveQValue(activeQValueMap, state, to, idx)
+          );
 
           return (
             <g
@@ -155,11 +169,16 @@ export function AgentCanvas({
               onMouseMove={(event) => onNodeHover(state, event)}
               onMouseLeave={onNodeLeave}
             >
-              <circle cx={x} cy={y} r={r} fill={fill} stroke="#2f3a2a" strokeWidth={isCurrent ? 0.085 : 0.06} opacity={opacity} />
+              <circle cx={x} cy={y} r={NODE_RADIUS} fill={fill} stroke={NODE_STROKE} strokeWidth={isCurrent ? 0.12 : 0.06} opacity={0.92} />
               {!isTerminal && everVisited.has(state) && (!hardMode || visited.has(state)) && (
                 <>
-                  <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke="#2f3a2a" strokeWidth={0.045} opacity={opacity} />
-                  <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke="#2f3a2a" strokeWidth={0.045} opacity={opacity} />
+                  {QUADRANT_BOUNDS.map(({ key, start, end }) => {
+                    const value = quadrantValues[key];
+                    const color = value == null ? fill : qValueColor(value);
+                    return <path key={`${state}-quad-${key}`} d={arcPath(x, y, NODE_RADIUS, start, end)} fill={color} opacity={0.92} />;
+                  })}
+                  <line x1={x - d} y1={y - d} x2={x + d} y2={y + d} stroke={NODE_STROKE} strokeWidth={0.045} />
+                  <line x1={x - d} y1={y + d} x2={x + d} y2={y - d} stroke={NODE_STROKE} strokeWidth={0.045} />
                 </>
               )}
             </g>

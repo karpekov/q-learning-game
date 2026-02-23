@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import { Checkbox } from '../modules/Checkbox';
-import type { GraphViewerProps } from './types';
+import type { PlaybackViewProps } from './types';
 import { formatParam } from './utils';
 
 type GraphStatsPanelProps = {
-  playbackStats: NonNullable<GraphViewerProps['playbackStats']>;
-  hyperParams: GraphViewerProps['hyperParams'];
+  playbackStats: NonNullable<PlaybackViewProps['playbackStats']>;
+  hyperParams: PlaybackViewProps['hyperParams'];
   showPolicy: boolean;
   showQValues: boolean;
   setShowPolicy: React.Dispatch<React.SetStateAction<boolean>>;
